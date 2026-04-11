@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+# ~/devtrace/report.py
+# 사용법:
+#   report.py weekly              → 주간 리포트
+#   report.py portfolio NAME      → 프로젝트 포트폴리오
+
+import os
+import sys
+import requests
+import re
+from datetime import datetime, timedelta
+from pathlib import Path
+from dotenv import load_dotenv
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+
+load_dotenv(Path.home() / "devtrace" / "config.env")
+
+API_KEY = os.getenv("GROQ_API_KEY")
+LOG_DIR = Path(os.getenv("LOG_DIR", str(Path.home() / "devtrace/logs")))
+JOURNAL_DIR = Path(os.getenv("JOURNAL_DIR", str(Path.home() / "devtrace/journal")))
+PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/portfolio")))
+
+PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def call_groq_api(prompt: str, max_tokens: int = 2000) -> str:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    body = {
+        "model": "llama-3.3-70b-versatile",
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=headers,
+        json=body,
+        timeout=30
+    )
+    if response.status_code != 200:
+        raise Exception(f"API 오류: {response.status_code}")
+    return response.json()["choices"][0]["message"]["content"]
+
+
+def load_week_journals(week_offset: int = 0) -> dict:
+    today = datetime.now() - timedelta(weeks=week_offset)
+    monday = today - timedelta(days=today.weekday())
+    journals = {}
+    for i in range(7):
+        date = monday + timedelta(days=i)
+        date_str = date.strftime("%Y-%m-%d")
+        filepath = JOURNAL_DIR / f"{date_str}.md"
+        if filepath.exists():
+            journals[date_str] = filepath.read_text(encoding="utf-8")
+    return journals
+
+
+def generate_weekly_report(journals: dict) -> str:
+    if not journals:
+        return "이번 주 기록된 일지가 없습니다."
+
+    dates = sorted(journals.keys())
+    week_start = dates[0]
+    week_end = dates[-1]
+
+    total_files = 0
+    total_commits = 0
+    prev_journals = load_week_journals(week_offset=1)
+
+    for content in journals.values():
+        m = re.search(r'수정한 파일 수.*?(\d+)', content)
+        if m: total_files += int(m.group(1))
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        if m: total_commits += int(m.group(1))
+
+    prev_commits = 0
+    for content in prev_journals.values():
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        if m: prev_commits += int(m.group(1))
+
+    # 성장률 계산
+    if prev_commits > 0:
+        growth = ((total_commits - prev_commits) / prev_commits) * 100
+        growth_str = f"+{growth:.0f}% 📈" if growth > 0 else f"{growth:.0f}% 📉"
+    else:
+        growth_str = "첫 주 데이터"
+
+    report = f"""# 📊 주간 리포트 ({week_start} ~ {week_end})
+
+## 이번 주 통계
+- 📅 활동한 날: {len(journals)}일
+- 📁 수정한 파일: 총 {total_files}개
+- 💾 Git 커밋: 총 {total_commits}개
+- 📈 지난 주 대비 커밋: {growth_str}
+
+## 일별 활동
+"""
+    for date, content in sorted(journals.items()):
+        section = re.search(r'## 📋 오늘 한 일\n(.*?)\n##', content, re.DOTALL)
+        summary = section.group(1).strip() if section else "기록 없음"
+        first_line = summary.split('\n')[0]
+        report += f"- **{date}**: {first_line}\n"
+
+    return report
+
+
+def generate_portfolio(project_name: str) -> str:
+    """특정 프로젝트 관련 일지만 모아서 포트폴리오 생성"""
+
+    # 1. 날짜별 일지에서 프로젝트 관련 내용 찾기
+    project_journals = []
+
+    # 프로젝트 전용 일지 파일 찾기
+    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
+        project_journals.append(md_file.read_text(encoding="utf-8"))
+
+    # 날짜별 일지에서도 프로젝트 언급 찾기
+    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        if project_name.lower() in content.lower():
+            project_journals.append(f"[{md_file.stem}]\n{content}")
+
+    if not project_journals:
+        return f"'{project_name}' 관련 일지를 찾을 수 없습니다."
+
+    all_content = "\n\n---\n\n".join(project_journals)
+    if len(all_content) > 8000:
+        all_content = all_content[:8000] + "\n...(이하 생략)"
+
+    prompt = f"""당신은 개발자의 개발 일지를 읽고 GitHub 포트폴리오 README를 작성하는 전문가입니다.
+
+아래는 "{project_name}" 프로젝트 관련 개발 일지 모음입니다.
+
+{all_content}
+
+위 일지들을 바탕으로 GitHub README.md를 작성해주세요.
+
+# {project_name}
+
+## 📌 프로젝트 소개
+(이 프로젝트가 무엇인지 2~3줄)
+
+## 🛠 기술 스택
+(일지에서 감지된 기술들)
+
+## ✨ 주요 기능
+(구현한 기능들 목록)
+
+## 🔥 개발 과정에서 해결한 문제들
+(트러블슈팅 사례들을 서술형으로)
+
+## 📈 개발 통계
+- 개발 기간:
+- 총 커밋 수:
+- 총 수정 파일:
+- 추가된 코드:
+
+## 💡 배운 것들
+"""
+
+    return call_groq_api(prompt)
+
+
+def draw_weekly_graph(journals: dict):
+    if not HAS_MATPLOTLIB:
+        print("⚠️  matplotlib 없음 - 그래프 생략")
+        return
+
+    dates, commits = [], []
+    for date, content in sorted(journals.items()):
+        dates.append(date[5:])
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        commits.append(int(m.group(1)) if m else 0)
+
+    if not dates:
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    bars = ax.bar(dates, commits, color='#4CAF50', alpha=0.8)
+    ax.set_title('이번 주 일별 커밋 수', fontsize=14, pad=15)
+    ax.set_xlabel('날짜')
+    ax.set_ylabel('커밋 수')
+
+    for bar, val in zip(bars, commits):
+        if val > 0:
+            ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.05,
+                   str(val), ha='center', va='bottom')
+
+    plt.tight_layout()
+    graph_path = PORTFOLIO_DIR / "weekly_graph.png"
+    plt.savefig(graph_path, dpi=150)
+    plt.close()
+    print(f"📊 그래프 저장: {graph_path}")
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "weekly"
+
+    if mode == "weekly":
+        print("📊 주간 리포트 생성 중...")
+        journals = load_week_journals()
+        report = generate_weekly_report(journals)
+        week_num = datetime.now().strftime("%Y-W%U")
+        filepath = JOURNAL_DIR / f"weekly_{week_num}.md"
+        filepath.write_text(report, encoding="utf-8")
+        print(f"✅ 주간 리포트 저장: {filepath}")
+        draw_weekly_graph(journals)
+
+    elif mode == "portfolio":
+        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
+        print(f"🏗  포트폴리오 생성 중: {project_name}")
+        readme = generate_portfolio(project_name)
+        readme_path = PORTFOLIO_DIR / f"{project_name}_README.md"
+        readme_path.write_text(readme, encoding="utf-8")
+        print(f"✅ 포트폴리오 저장: {readme_path}")
+        print("\n미리보기:")
+        print(readme[:600])
+
+    else:
+        print("사용법:")
+        print("  report.py weekly              → 주간 리포트")
+        print("  report.py portfolio [이름]    → 포트폴리오 생성")
+
+
+if __name__ == "__main__":
+    main()
+

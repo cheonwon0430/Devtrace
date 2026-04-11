@@ -1,0 +1,25 @@
+ 4월 06 13:32:48 Ubuntu5 systemd[2534]: Failed to start Application launched by gnome-session-binary.
+ 4월 06 13:32:48 Ubuntu5 systemd[2534]: Failed to start Application launched by gnome-session-binary.
+ 4월 06 13:32:58 Ubuntu5 pulseaudio[2543]: GetManagedObjects() failed: org.freedesktop.DBus.Error.TimedOut: Failed to activate service 'org.bluez': timed out (service_start_timeout=25000ms)
+ 4월 06 13:52:03 Ubuntu5 pulseaudio[2543]: ALSA woke us up to write new data to the device, but there was actually nothing to write.
+ 4월 06 13:52:03 Ubuntu5 pulseaudio[2543]: Most likely this is a bug in the ALSA driver 'snd_intel8x0'. Please report this issue to the ALSA developers.
+ 4월 06 13:52:03 Ubuntu5 pulseaudio[2543]: We were woken up with POLLOUT set -- however a subsequent snd_pcm_avail() returned 0 or another value < min_avail.
+-- Boot 4efc6b5853d34cf8b447ba0adf853a87 --
+ 4월 08 13:36:25 Ubuntu5 pulseaudio[2544]: GetManagedObjects() failed: org.freedesktop.DBus.Error.TimedOut: Failed to activate service 'org.bluez': timed out (service_start_timeout=25000ms)
+-- Boot 231a4efbc4c74adba4b3252c6cc35976 --
+ 4월 11 18:00:02 Ubuntu5 systemd[2553]: Failed to start Application launched by gnome-session-binary.
+ 4월 11 18:00:02 Ubuntu5 systemd[2553]: Failed to start Application launched by gnome-session-binary.
+ 4월 11 18:00:05 Ubuntu5 pulseaudio[2562]: ALSA woke us up to write new data to the device, but there was actually nothing to write.
+ 4월 11 18:00:05 Ubuntu5 pulseaudio[2562]: Most likely this is a bug in the ALSA driver 'snd_intel8x0'. Please report this issue to the ALSA developers.
+ 4월 11 18:00:05 Ubuntu5 pulseaudio[2562]: We were woken up with POLLOUT set -- however a subsequent snd_pcm_avail() returned 0 or another value < min_avail.
+ 4월 11 18:00:17 Ubuntu5 pulseaudio[2562]: GetManagedObjects() failed: org.freedesktop.DBus.Error.TimedOut: Failed to activate service 'org.bluez': timed out (service_start_timeout=25000ms)
+-- Boot 43c53b96047a471eb79a01a881fa5db0 --
+ 4월 11 18:08:04 Ubuntu5 pulseaudio[2551]: GetManagedObjects() failed: org.freedesktop.DBus.Error.TimedOut: Failed to activate service 'org.bluez': timed out (service_start_timeout=25000ms)
+ 4월 11 18:43:49 Ubuntu5 pulseaudio[2551]: ALSA woke us up to write new data to the device, but there was actually nothing to write.
+ 4월 11 18:43:49 Ubuntu5 pulseaudio[2551]: Most likely this is a bug in the ALSA driver 'snd_intel8x0'. Please report this issue to the ALSA developers.
+ 4월 11 18:43:49 Ubuntu5 pulseaudio[2551]: We were woken up with POLLOUT set -- however a subsequent snd_pcm_avail() returned 0 or another value < min_avail.
+ 4월 11 18:46:36 Ubuntu5 sudo[3660]:     user : user NOT in sudoers ; TTY=pts/0 ; PWD=/home/user ; USER=root ; COMMAND=/usr/bin/apt update
+-- Boot e1d1dfd739fc4aeeb9a18646adfd97fd --
+ 4월 11 18:51:39 Ubuntu5 systemd[2519]: Failed to start Application launched by gnome-session-binary.
+ 4월 11 18:51:39 Ubuntu5 systemd[2519]: Failed to start Application launched by gnome-session-binary.
+ 4월 11 18:51:56 Ubuntu5 pulseaudio[2528]: GetManagedObjects() failed: org.freedesktop.DBus.Error.TimedOut: Failed to activate service 'org.bluez': timed out (service_start_timeout=25000ms)

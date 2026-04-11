@@ -1,0 +1,23 @@
+python3 -c "
+import requests
+import os
+
+api_key = open('/home/user/devtrace/config.env').read()
+key = [l.split('\"')[1] for l in api_key.split('\n') if 'GROQ_API_KEY' in l][0]
+
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
+    json={'model':'llama-3.3-70b-versatile','messages':[{'role':'user','content':'안녕'}],'max_tokens':50})
+print(r.status_code)
+print(r.text[:200])
+"
+rm ~/devtrace/journal/2026-04-11.md
+bash ~/devtrace/devtrace.sh daily
+gedit ~/devtrace/journal/2026-04-12.md
+gedit ~/devtrace/logs/20260412_history.txt
+cat ~/devtrace/logs/20260412_history.txt
+echo 'HISTTIMEFORMAT="%Y-%m-%d %T "' >> ~/.bashrc
+echo 'HISTCONTROL=ignoredups' >> ~/.bashrc
+source ~/.bashrc
+echo $HISTTIMEFORMAT
+ls
