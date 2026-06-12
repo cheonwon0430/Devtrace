@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 # ~/devtrace/report.py
-# 사용법:
-#   report.py weekly              → 주간 리포트
-#   report.py portfolio NAME      → 프로젝트 포트폴리오
 
 import os
 import sys
@@ -16,6 +13,16 @@ try:
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+
+    # 한글 폰트 설정
+    nanum_fonts = [f for f in fm.findSystemFonts() if 'Nanum' in f or 'nanum' in f]
+    if nanum_fonts:
+        plt.rcParams['font.family'] = fm.FontProperties(fname=nanum_fonts[0]).get_name()
+    else:
+        plt.rcParams['font.family'] = 'DejaVu Sans'
+    plt.rcParams['axes.unicode_minus'] = False
+
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
@@ -38,7 +45,13 @@ def call_groq_api(prompt: str, max_tokens: int = 2000) -> str:
     body = {
         "model": "llama-3.3-70b-versatile",
         "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": prompt}]
+        "messages": [
+            {
+                "role": "system",
+                "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요."
+            },
+            {"role": "user", "content": prompt}
+        ]
     }
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -87,7 +100,6 @@ def generate_weekly_report(journals: dict) -> str:
         m = re.search(r'Git 커밋 수.*?(\d+)', content)
         if m: prev_commits += int(m.group(1))
 
-    # 성장률 계산
     if prev_commits > 0:
         growth = ((total_commits - prev_commits) / prev_commits) * 100
         growth_str = f"+{growth:.0f}% 📈" if growth > 0 else f"{growth:.0f}% 📉"
@@ -114,16 +126,11 @@ def generate_weekly_report(journals: dict) -> str:
 
 
 def generate_portfolio(project_name: str) -> str:
-    """특정 프로젝트 관련 일지만 모아서 포트폴리오 생성"""
-
-    # 1. 날짜별 일지에서 프로젝트 관련 내용 찾기
     project_journals = []
 
-    # 프로젝트 전용 일지 파일 찾기
     for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
         project_journals.append(md_file.read_text(encoding="utf-8"))
 
-    # 날짜별 일지에서도 프로젝트 언급 찾기
     for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
         content = md_file.read_text(encoding="utf-8")
         if project_name.lower() in content.lower():
@@ -142,27 +149,22 @@ def generate_portfolio(project_name: str) -> str:
 
 {all_content}
 
-위 일지들을 바탕으로 GitHub README.md를 작성해주세요.
+위 일지들을 바탕으로 GitHub README.md를 한국어로 작성해주세요.
 
 # {project_name}
 
 ## 📌 프로젝트 소개
-(이 프로젝트가 무엇인지 2~3줄)
 
 ## 🛠 기술 스택
-(일지에서 감지된 기술들)
 
 ## ✨ 주요 기능
-(구현한 기능들 목록)
 
 ## 🔥 개발 과정에서 해결한 문제들
-(트러블슈팅 사례들을 서술형으로)
 
 ## 📈 개발 통계
 - 개발 기간:
 - 총 커밋 수:
 - 총 수정 파일:
-- 추가된 코드:
 
 ## 💡 배운 것들
 """
@@ -175,13 +177,16 @@ def draw_weekly_graph(journals: dict):
         print("⚠️  matplotlib 없음 - 그래프 생략")
         return
 
-    dates, commits = [], []
+    dates = []
+    commits = []
+
     for date, content in sorted(journals.items()):
         dates.append(date[5:])
         m = re.search(r'Git 커밋 수.*?(\d+)', content)
         commits.append(int(m.group(1)) if m else 0)
 
-    if not dates:
+    if not dates or all(c == 0 for c in commits):
+        print("⚠️  커밋 데이터 없음 - 그래프 생략")
         return
 
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -233,4 +238,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

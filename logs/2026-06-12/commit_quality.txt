@@ -1,0 +1,7 @@
+## 커밋 메시지 품질 체크
+### ai-summarizer
+  ✅ 양호: "Revert "수정""
+  ⚠️  너무 짧음: "수정" (2자)
+  ✅ 양호: "401/KeyError 수정: .env API 키 추가, gitignore 처리"
+  ✅ 양호: "requirements.txt 추가"
+

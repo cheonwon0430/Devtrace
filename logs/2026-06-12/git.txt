@@ -1,0 +1,8 @@
+
+## 레포: ai-summarizer
+[7a1c82e] Revert "수정" (18:28)
+[992ff06] 수정 (18:28)
+[02d54c7] 401/KeyError 수정: .env API 키 추가, gitignore 처리 (18:24)
+[1af3ee3] requirements.txt 추가 (18:12)
+[68676f0] 초기 구조: Groq API 기반 텍스트 요약기 (18:12)
+

@@ -1,0 +1,11 @@
+-- Boot ef29987e594e4c89ae494855d85662eb --
+-- Boot efb70240da7a4fc4ac2c3c88e0bca26d --
+    except Exception as e:
+        print(f"{url} -> Error ({e})")
+    except Exception as e:
+        print(f"{url} -> Error ({e})")
+git add . && git commit -m "401/KeyError 수정: .env API 키 추가, gitignore 처리"
+        raise Exception(f"API 오류: {response.status_code} - {response.text}")
+        raise Exception(f"API 오류: {response.status_code} - {response.text}")
+old_count = '''            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null || echo 0)'''
+new_count = '''            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null)

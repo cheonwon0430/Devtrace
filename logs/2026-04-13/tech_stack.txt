@@ -1,0 +1,4 @@
+## 기술 스택 감지
+  JavaScript/React: 1개 파일
+  CSS: 1개 파일
+  HTML: 1개 파일

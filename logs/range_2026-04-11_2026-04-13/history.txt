@@ -1,0 +1,113 @@
+python3 -c "
+import requests
+import os
+
+api_key = open('/home/user/devtrace/config.env').read()
+key = [l.split('\"')[1] for l in api_key.split('\n') if 'GROQ_API_KEY' in l][0]
+
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
+    json={'model':'llama-3.3-70b-versatile','messages':[{'role':'user','content':'안녕'}],'max_tokens':50})
+print(r.status_code)
+print(r.text[:200])
+"
+rm ~/devtrace/journal/2026-04-11.md
+bash ~/devtrace/devtrace.sh daily
+gedit ~/devtrace/journal/2026-04-12.md
+gedit ~/devtrace/logs/20260412_history.txt
+cat ~/devtrace/logs/20260412_history.txt
+echo 'HISTTIMEFORMAT="%Y-%m-%d %T "' >> ~/.bashrc
+echo 'HISTCONTROL=ignoredups' >> ~/.bashrc
+source ~/.bashrc
+echo $HISTTIMEFORMAT
+ls
+gedit ~/devtrace/collect.sh
+gedit ~/devtrace/analyze.py
+gedit ~/devtrace/report.py
+gedit ~/devtrace/devtrace.sh
+bash ~/devtrace/devtrace.sh daily
+~/devtrace/journal/2026-04-12.md
+bash ~/devtrace/devtrace.sh full
+bash ~/devtrace/devtrace.sh range 2026-04-01 2026-04-12
+bash ~/devtrace/devtrace.sh project devtrace
+cd ~/devtrace
+git init
+git add .
+git commit -m "DevTrace 초기 설정"
+bash ~/devtrace/devtrace.sh project devtrace
+cd ~/projects
+mkdir testproject
+cd testproject
+git init
+echo "print('hello')" > main.py
+git add .
+git commit -m "첫 커밋"
+cd ~/projects
+mkdir testproject
+cd testproject
+git init
+echo "print('hello')" > main.py
+git add .
+git commit -m "첫 커밋"
+bash ~/devtrace/devtrace.sh project testproject
+gedit ~/devtrace/analyze.py
+gedit ~/devtrace/collect.sh
+bash ~/devtrace/devtrace.sh project testproject
+find ~/projects/testproject -type f -name "*.py"
+find /home/user/projects/testproject -type f -name "*.py" -printf "%T+ %p\n"
+bash ~/devtrace/devtrace.sh project testproject
+cp -r ~/projects/testproject ~/projects/testproject2
+cd ~/projects/testproject2
+git init
+git add .
+git commit -m "testproject2 초기 설정"
+python3 notexist.py
+pip install fakepackage123
+git add calculator.py
+git commit -m "계산기 함수 추가"
+git add app.js
+git commit -m "JS 앱 추가"
+git add index.html style.css
+git commit -m "프론트엔드 파일 추가"
+echo "def subtract(a, b): return a - b" >> calculator.py
+git add calculator.py
+git commit -m "빼기 함수 추가"
+python3 notexist.py
+git checkout -b feature/login
+echo "def login(user, pw): pass" > login.py
+git add login.py
+git commit -m "로그인 기능 초안"
+git checkout master
+git merge feature/login
+echo "def multiply(a, b): return a * b" >> calculator.py
+git add calculator.py
+git commit -m "곱하기 함수 추가"
+bash ~/devtrace/devtrace.sh project testproject2
+cat ~/devtrace/logs/project_testproject2/files.txt
+cat ~/devtrace/logs/project_testproject2/tech_stack.txt
+ls -la ~/projects/testproject2/
+cd ~/projects/testproject2
+echo "console.log('hello')" > app.js
+echo "<html><body>test</body></html>" > index.html
+echo "body { color: red; }" > style.css
+git add .
+git commit -m "프론트엔드 파일 추가"
+ls -la ~/projects/testproject/
+cd ~/projects/testproject2
+echo "console.log('hello')" > app.js
+echo "<html><body>test</body></html>" > index.html
+echo "body { color: red; }" > style.css
+git add .
+git commit -m "프론트엔드 파일 추가"
+ls -la ~/projects/testproject2/
+git -C ~/projects/testproject2 log --oneline
+bash ~/devtrace/devtrace.sh project testproject2
+[200~python3 -c "
+import requests, os
+from dotenv import load_dotenv
+from pathlib import Path
+load_dotenv(Path.home() / 'devtrace' / 'config.env')
+r = requests.get('https://api.groq.com/openai/v1/models',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}'})
+for m in r.json()['data']:
+    print(m['id'])

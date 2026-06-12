@@ -1,0 +1,15 @@
+devtrace_export 
+type devtrace_export
+tail -20 ~/.bashrc
+devtrace_export
+cd ..
+ls
+/tmp
+cd /tmp/
+ls
+cd ..
+cp /tmp/devtrace_all_code.txt ~/Desktop/
+cp /tmp/devtrace_all_code.txt ~/바탕화면/
+ls ~/바탕화면/devtrace_all_code.txt
+npm install -g 
+sudo apt install npm

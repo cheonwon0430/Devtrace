@@ -1,16 +1,10 @@
 #!/bin/bash
 # ~/devtrace/collect.sh
-# 사용법:
-#   collect.sh daily              → 오늘 것만
-#   collect.sh full               → 전체 히스토리
-#   collect.sh range DATE1 DATE2  → 날짜 범위
-#   collect.sh project NAME       → 특정 프로젝트
 
 source ~/devtrace/config.env
 
 MODE="${1:-daily}"
 TODAY=$(date +%Y-%m-%d)
-TODAY_NUM=$(date +%Y%m%d)
 
 # ─────────────────────────────────────
 # 모드별 설정
@@ -22,6 +16,7 @@ case "$MODE" in
         DATE_FROM="$TODAY"
         DATE_TO="$TODAY"
         SEARCH_DIR="$PROJECT_DIR"
+        EXCLUDE_DEVTRACE=true
         ;;
     "full")
         echo "📚 전체 히스토리 수집 시작"
@@ -29,6 +24,7 @@ case "$MODE" in
         DATE_FROM=""
         DATE_TO=""
         SEARCH_DIR="$PROJECT_DIR"
+        EXCLUDE_DEVTRACE=true
         ;;
     "range")
         DATE_FROM="${2:-$TODAY}"
@@ -36,6 +32,7 @@ case "$MODE" in
         echo "📅 날짜 범위 수집: $DATE_FROM ~ $DATE_TO"
         OUT_DIR="$LOG_DIR/range_${DATE_FROM}_${DATE_TO}"
         SEARCH_DIR="$PROJECT_DIR"
+        EXCLUDE_DEVTRACE=true
         ;;
     "project")
         PROJECT_NAME="${2:-}"
@@ -43,12 +40,12 @@ case "$MODE" in
             echo "❌ 프로젝트 이름을 입력하세요."
             exit 1
         fi
-        # 홈 폴더 전체에서 프로젝트 폴더 검색
-        FOUND=$(find "$PROJECT_DIR" -maxdepth 3 -type d -name "$PROJECT_NAME" 2>/dev/null | head -1)
+        FOUND=$(find "$PROJECT_DIR" -maxdepth 4 -type d -name "$PROJECT_NAME" \
+            ! -path "*/.git/*" 2>/dev/null | head -1)
         if [ -z "$FOUND" ]; then
             echo "❌ 프로젝트 폴더를 찾을 수 없습니다: $PROJECT_NAME"
             echo "   현재 인식된 프로젝트 목록:"
-            find "$PROJECT_DIR" -maxdepth 2 -name ".git" -type d 2>/dev/null \
+            find "$PROJECT_DIR" -maxdepth 3 -name ".git" -type d 2>/dev/null \
                 | xargs -I{} dirname {} \
                 | xargs -I{} basename {}
             exit 1
@@ -58,6 +55,7 @@ case "$MODE" in
         DATE_FROM=""
         DATE_TO=""
         SEARCH_DIR="$FOUND"
+        EXCLUDE_DEVTRACE=false
         ;;
 esac
 
@@ -103,38 +101,58 @@ echo "    → $(wc -l < "$OUT_DIR/history.txt")개 명령어 수집"
 
 
 # ─────────────────────────────────────
-# 2. 파일 변경 추적 (프로젝트별 분리)
+# 2. 파일 변경 추적 + 기술 스택 감지
 # ─────────────────────────────────────
 echo "[2/5] 파일 변경 내역 수집 중..."
 
-if [ "$MODE" = "daily" ]; then
-    MTIME_OPT="-mtime -1"
-elif [ "$MODE" = "range" ]; then
-    MTIME_OPT="-newermt $DATE_FROM ! -newermt $DATE_TO"
-else
-    MTIME_OPT=""
-fi
+# 공통 find 함수
+run_find() {
+    local search_dir="$1"
+    local extra_opts="$2"
 
-# 전체 파일 목록
-find "$SEARCH_DIR" \
-    -type f \
-    $MTIME_OPT \
-    \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
-       -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
-       -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
-       -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
-       -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
-    ! -path "*/node_modules/*" \
-    ! -path "*/.git/*" \
-    ! -path "*/venv/*" \
-    ! -path "*/devtrace/*" \
-    -printf "%T+ %p\n" 2>/dev/null \
-    | sort -r \
-    > "$OUT_DIR/files.txt"
+    if [ "$EXCLUDE_DEVTRACE" = true ]; then
+        find "$search_dir" \
+            -type f \
+            $extra_opts \
+            \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
+               -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
+               -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
+               -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
+               -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
+            ! -path "*/node_modules/*" \
+            ! -path "*/.git/*" \
+            ! -path "*/venv/*" \
+            ! -path "*/devtrace/*" \
+            -printf "%T+ %p\n" 2>/dev/null \
+            | sort -r
+    else
+        find "$search_dir" \
+            -type f \
+            $extra_opts \
+            \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
+               -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
+               -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
+               -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
+               -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
+            ! -path "*/node_modules/*" \
+            ! -path "*/.git/*" \
+            ! -path "*/venv/*" \
+            -printf "%T+ %p\n" 2>/dev/null \
+            | sort -r
+    fi
+}
+
+if [ "$MODE" = "daily" ]; then
+    run_find "$SEARCH_DIR" "-mtime -1" > "$OUT_DIR/files.txt"
+elif [ "$MODE" = "range" ]; then
+    run_find "$SEARCH_DIR" "-newermt $DATE_FROM ! -newermt $DATE_TO" > "$OUT_DIR/files.txt"
+else
+    run_find "$SEARCH_DIR" "" > "$OUT_DIR/files.txt"
+fi
 
 echo "    → $(wc -l < "$OUT_DIR/files.txt")개 파일 변경 감지"
 
-# ─── 4번: 기술 스택 자동 감지 ───
+# 기술 스택 감지
 echo "    → 기술 스택 감지 중..."
 {
     echo "## 기술 스택 감지"
@@ -179,11 +197,10 @@ echo "" > "$GIT_FILE"
 echo "" > "$DIFF_FILE"
 echo "## 커밋 메시지 품질 체크" > "$COMMIT_QUALITY_FILE"
 
-find "$SEARCH_DIR" -name ".git" -type d ! -path "*/devtrace/*" 2>/dev/null | while read gitdir; do
+find "$SEARCH_DIR" -name ".git" -type d 2>/dev/null | while read gitdir; do
     repo_dir=$(dirname "$gitdir")
     repo_name=$(basename "$repo_dir")
 
-    # 커밋 로그
     if [ "$MODE" = "daily" ]; then
         commits=$(git -C "$repo_dir" log \
             --since="$TODAY 00:00:00" \
@@ -207,18 +224,16 @@ find "$SEARCH_DIR" -name ".git" -type d ! -path "*/devtrace/*" 2>/dev/null | whi
         echo "$commits" >> "$GIT_FILE"
         echo "" >> "$GIT_FILE"
 
-        # git diff --stat (변경 줄 수)
         echo "## $repo_name 변경 통계" >> "$DIFF_FILE"
         git -C "$repo_dir" diff --stat HEAD~1 HEAD 2>/dev/null >> "$DIFF_FILE"
         echo "" >> "$DIFF_FILE"
 
-        # ─── 5번: 커밋 메시지 품질 체크 ───
         echo "### $repo_name" >> "$COMMIT_QUALITY_FILE"
         git -C "$repo_dir" log --pretty=format:"%s" 2>/dev/null | while read msg; do
             msg_len=${#msg}
-            if [ $msg_len -lt 10 ]; then
+            if [ $msg_len -lt 5 ]; then
                 echo "  ⚠️  너무 짧음: \"$msg\" (${msg_len}자)" >> "$COMMIT_QUALITY_FILE"
-            elif echo "$msg" | grep -qiE "^(fix|update|test|wip|asdf|ㅁㄴㅇ|수정|변경)$"; then
+            elif echo "$msg" | grep -qiE "^(fix|update|test|wip|asdf|수정|변경|ㅁㄴㅇ)$"; then
                 echo "  ⚠️  불명확: \"$msg\"" >> "$COMMIT_QUALITY_FILE"
             else
                 echo "  ✅ 양호: \"$msg\"" >> "$COMMIT_QUALITY_FILE"
@@ -232,45 +247,60 @@ echo "    → Git 로그 수집 완료"
 
 
 # ─────────────────────────────────────
-# 4. 에러 로그 + 패턴 분석
+# 4. 에러 로그 (시스템 에러 필터링)
 # ─────────────────────────────────────
 echo "[4/5] 에러 로그 수집 중..."
 
 ERROR_FILE="$OUT_DIR/errors.txt"
+SYSTEM_FILTER="gnome\|dbus\|systemd\|glib\|gtk\|pulseaudio\|bluez\|alsa\|Xorg\|wayland\|NetworkManager\|avahi\|snapd\|udisk\|upower\|sudoers\|pam_unix"
 
 if [ "$MODE" = "daily" ]; then
     journalctl --since="$TODAY 00:00:00" \
         --until="$TODAY 23:59:59" \
-        -p err --no-pager 2>/dev/null | tail -50 > "$ERROR_FILE"
+        -p err --no-pager 2>/dev/null \
+        | grep -iv "$SYSTEM_FILTER" \
+        | tail -50 > "$ERROR_FILE"
 elif [ "$MODE" = "range" ]; then
     journalctl --since="$DATE_FROM 00:00:00" \
         --until="$DATE_TO 23:59:59" \
-        -p err --no-pager 2>/dev/null | tail -100 > "$ERROR_FILE"
+        -p err --no-pager 2>/dev/null \
+        | grep -iv "$SYSTEM_FILTER" \
+        | tail -100 > "$ERROR_FILE"
 else
-    journalctl -p err --no-pager 2>/dev/null | tail -100 > "$ERROR_FILE"
+    journalctl -p err --no-pager 2>/dev/null \
+        | grep -iv "$SYSTEM_FILTER" \
+        | tail -100 > "$ERROR_FILE"
 fi
 
 grep -i "error\|not found\|permission denied\|failed\|traceback\|exception" \
-    "$OUT_DIR/history.txt" >> "$ERROR_FILE" 2>/dev/null
+    "$OUT_DIR/history.txt" \
+    | grep -iv "$SYSTEM_FILTER" \
+    >> "$ERROR_FILE" 2>/dev/null
 
-# ─── 1번: 에러 패턴 분석 (과거 에러와 비교) ───
+echo "    → 에러 로그 수집 완료"
+
+
+# ─────────────────────────────────────
+# 5. 에러 패턴 분석
+# ─────────────────────────────────────
 echo "[5/5] 에러 패턴 분석 중..."
 
 PATTERN_FILE="$OUT_DIR/error_patterns.txt"
 echo "## 에러 패턴 분석" > "$PATTERN_FILE"
 
-# 과거 에러 로그 전부 합치기
 ALL_ERRORS_FILE="$LOG_DIR/all_errors_combined.txt"
 find "$LOG_DIR" -name "errors.txt" ! -path "$OUT_DIR/*" 2>/dev/null \
     | xargs cat 2>/dev/null > "$ALL_ERRORS_FILE"
 
 if [ -s "$ALL_ERRORS_FILE" ]; then
     echo "### 반복 에러 감지" >> "$PATTERN_FILE"
-    # 현재 에러를 과거와 비교해서 반복되는 키워드 찾기
-    grep -i "error\|failed\|not found" "$ERROR_FILE" 2>/dev/null | while read err_line; do
+    grep -i "error\|failed\|not found" "$ERROR_FILE" 2>/dev/null \
+        | grep -iv "$SYSTEM_FILTER" \
+        | while read err_line; do
         keyword=$(echo "$err_line" | grep -oiE "[A-Za-z]+Error|[A-Za-z]+Exception|not found|permission denied" | head -1)
         if [ -n "$keyword" ]; then
-            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null || echo 0)
+            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null)
+            count=${count:-0}
             if [ "$count" -gt 1 ]; then
                 echo "  ⚠️  반복 에러: $keyword (과거 ${count}회 발생)" >> "$PATTERN_FILE"
             fi
@@ -283,5 +313,5 @@ fi
 echo ""
 echo "✅ 수집 완료!"
 echo "   저장 위치: $OUT_DIR"
-echo "   파일 목록: $(ls $OUT_DIR)"
-
+echo "   파일 목록:"
+ls "$OUT_DIR"
