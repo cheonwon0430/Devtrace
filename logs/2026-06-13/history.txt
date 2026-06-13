@@ -1,0 +1,595 @@
+devtrace_export
+ls -lt ~/devtrace/journal/ | head -5
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -10
+import os
+import sys
+def summarize_file(filepath: str) -> str:
+    """파일을 읽어서 요약 생성"""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {filepath}")
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"디렉토리입니다, 파일이 아닙니다: {filepath}")
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    if not content.strip():
+        raise ValueError(f"파일이 비어있습니다: {filepath}")
+    return summarize_text(content)
+def summarize_text(content: str) -> str:
+    # 임시: 실제로는 call_groq_api 호출
+    return f"[요약] 총 {len(content)}자"
+if __name__ == "__main__":;     if len(sys.argv) < 2:
+        print("사용법: python3 summarizer.py <파일경로>")
+        sys.exit(1)
+    try:
+        result = summarize_file(sys.argv[1])
+        print(result)
+    except FileNotFoundError as e:
+        print(f"❌ 오류: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"❌ 오류: {e}")
+        sys.exit(1)
+python3 summarizer.py 없는파일.txt
+def chunk_text(text: str, chunk_size: int = 3000) -> list[str]:
+    """긴 텍스트를 chunk_size 글자 단위로 분할"""
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+def summarize_long(content: str, max_tokens: int = 1500) -> str:
+    """긴 문서를 청킹해서 요약 후 합치기"""
+    EST_CHARS_PER_TOKEN = 2  # 한국어 대략치
+    if len(content) <= max_tokens * EST_CHARS_PER_TOKEN:
+        return summarize_text(content)
+    chunks = chunk_text(content)
+    print(f"⚠️  문서가 길어서 {len(chunks)}개로 분할 처리합니다.")
+    chunk_summaries = []
+    for i, chunk in enumerate(chunks, 1):
+        print(f"  [{i}/{len(chunks)}] 청크 요약 중...")
+        chunk_summaries.append(summarize_text(chunk))
+    combined = "\n".join(chunk_summaries)
+    return summarize_text(combined)
+def call_groq_api_safe(prompt: str) -> str:
+    """KeyError 안전처리 버전"""
+    import requests
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"
+    }
+    body = {
+        "model": "llama-3.3-70b-versatile",
+        "max_tokens": 1500,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers, json=body, timeout=30
+        )
+        data = response.json()
+        if "choices" not in data:
+            # API 에러 응답 형식 (예: {"error": {"message": "..."}})
+            error_msg = data.get("error", {}).get("message", "알 수 없는 오류")
+            raise KeyError(f"API 응답에 choices 없음: {error_msg}")
+        return data["choices"][0]["message"]["content"]
+    except KeyError as e:
+        print(f"❌ API 응답 형식 오류: {e}")
+        return "(요약 실패 - API 응답 형식 오류)"
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 네트워크 오류: {e}")
+        return "(요약 실패 - 네트워크 오류)"
+python3 -c "from summarizer import call_groq_api_safe; print(call_groq_api_safe('test'))"
+mkdir -p ~/projects/ai-summarizer
+cd ~/projects/ai-summarizer
+nano summarizer.py
+rm -f summarizer.py
+cat > summarizer.py << 'EOF'
+import os
+import sys
+import requests
+
+
+def summarize_text(content: str) -> str:
+    return f"[요약] 총 {len(content)}자"
+
+
+def summarize_file(filepath: str) -> str:
+    """파일을 읽어서 요약 생성"""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {filepath}")
+
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"디렉토리입니다, 파일이 아닙니다: {filepath}")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if not content.strip():
+        raise ValueError(f"파일이 비어있습니다: {filepath}")
+
+    return summarize_text(content)
+
+
+def chunk_text(text: str, chunk_size: int = 3000) -> list:
+    """긴 텍스트를 chunk_size 글자 단위로 분할"""
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def summarize_long(content: str, max_tokens: int = 1500) -> str:
+    """긴 문서를 청킹해서 요약 후 합치기"""
+    EST_CHARS_PER_TOKEN = 2
+    if len(content) <= max_tokens * EST_CHARS_PER_TOKEN:
+        return summarize_text(content)
+
+    chunks = chunk_text(content)
+    print(f"⚠️  문서가 길어서 {len(chunks)}개로 분할 처리합니다.")
+
+    chunk_summaries = []
+    for i, chunk in enumerate(chunks, 1):
+        print(f"  [{i}/{len(chunks)}] 청크 요약 중...")
+        chunk_summaries.append(summarize_text(chunk))
+
+    combined = "\n".join(chunk_summaries)
+    return summarize_text(combined)
+
+
+def call_groq_api_safe(prompt: str) -> str:
+    """KeyError 안전처리 버전"""
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"
+    }
+    body = {
+        "model": "llama-3.3-70b-versatile",
+        "max_tokens": 1500,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers, json=body, timeout=30
+        )
+        data = response.json()
+
+        if "choices" not in data:
+            error_msg = data.get("error", {}).get("message", "알 수 없는 오류")
+            raise KeyError(f"API 응답에 choices 없음: {error_msg}")
+
+        return data["choices"][0]["message"]["content"]
+
+    except KeyError as e:
+        print(f"❌ API 응답 형식 오류: {e}")
+        return "(요약 실패 - API 응답 형식 오류)"
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 네트워크 오류: {e}")
+        return "(요약 실패 - 네트워크 오류)"
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("사용법: python3 summarizer.py <파일경로>")
+        sys.exit(1)
+
+    try:
+        result = summarize_file(sys.argv[1])
+        print(result)
+    except FileNotFoundError as e:
+        print(f"❌ 오류: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"❌ 오류: {e}")
+        sys.exit(1)
+EOF
+
+cat summarizer.py | head -20
+python3 -m py_compile summarizer.py && echo "✅ 문법 OK"
+cat summarizer.py | head -50
+cat requirements.txt
+echo "requests" >> requirements.txt
+cat requirements.txt
+python3 summarizer.py 없는파일.txt
+echo "테스트 내용입니다" > test.txt
+python3 summarizer.py test.txt
+python3 -c "print('가' * 5000)" > big.txt
+python3 -c "from summarizer import summarize_long; print(summarize_long(open('big.txt').read()))"
+git add .
+git commit -m "summarize_file 추가 + FileNotFoundError 처리, 청킹/KeyError 안전처리"
+cp config.env config.env.bak
+nano config.env  # GROQ_API_KEY="gsk_XXX잘못된값"
+python3 -c "
+from dotenv import load_dotenv
+load_dotenv()
+from summarizer import call_groq_api_safe
+print(call_groq_api_safe('테스트'))
+"
+cp config.env.bak config.env
+rm config.env.bak
+cd ..
+cp config.env config.env.bak
+nano config.env  # GROQ_API_KEY="gsk_XXX잘못된값"
+python3 -c "
+from dotenv import load_dotenv
+load_dotenv()
+from summarizer import call_groq_api_safe
+print(call_groq_api_safe('테스트'))
+"
+cp config.env.bak config.env
+rm config.env.bak
+cd ~/projects/ai-summarizer
+cp ~/devtrace/config.env ~/devtrace/config.env.bak
+nano ~/devtrace/config.env  # GROQ_API_KEY 값 끝에 XXX 붙이기
+python3 -c "
+from dotenv import load_dotenv
+from pathlib import Path
+load_dotenv(Path.home() / 'devtrace' / 'config.env')
+from summarizer import call_groq_api_safe
+print(call_groq_api_safe('테스트'))
+"
+cp ~/devtrace/config.env.bak ~/devtrace/config.env
+rm ~/devtrace/config.env.bak
+nano config.env
+nano ~/devtrace/config.env  # GROQ_API_KEY 값 끝에 XXX 붙이기
+cd ~/projects/ai-summarizer
+git add .
+git commit -m "401 에러 시 KeyError 안전처리 동작 확인"
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -15
+cat ~/devtrace/journal/$(date +%Y-%m-%d).md
+cat >> ~/devtrace/work_log.txt << 'EOF'
+
+[2026-06-13]
+- ai-summarizer 세션2 완료: FileNotFoundError, ValueError, 청킹+KeyError(401) 안전처리 구현 및 실제 재현 테스트
+- daily 일지 검증: 잘림/placeholder/이모지 모두 정상, 다국어 없음
+- 신규 이슈 재확인: 트러블슈팅에 KeyError(401)는 안 잡히고 FileNotFoundError만 잡힘 → 다음 패스 프롬프트 개선 대상
+EOF
+
+cat >> ~/projects/ai-summarizer/summarizer.py << 'EOF'
+
+
+def save_result_json(filepath: str, summary: str, output_path: str = "output/summary.json"):
+    """결과를 JSON으로 저장 (HTML 뷰어에서 읽음)"""
+    import json
+    from datetime import datetime
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    data = {
+        "filename": os.path.basename(filepath),
+        "summary": summary,
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"💾 결과 저장: {output_path}")
+EOF
+
+nano ~/projects/ai-summarizer/summarizer.py
+cat > ~/projects/ai-summarizer/summarizer.py << 'EOF'
+import os
+import sys
+import json
+import requests
+from datetime import datetime
+
+
+def summarize_text(content: str) -> str:
+    return f"[요약] 총 {len(content)}자"
+
+
+def summarize_file(filepath: str) -> str:
+    """파일을 읽어서 요약 생성"""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {filepath}")
+
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"디렉토리입니다, 파일이 아닙니다: {filepath}")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if not content.strip():
+        raise ValueError(f"파일이 비어있습니다: {filepath}")
+
+    return summarize_text(content)
+
+
+def chunk_text(text: str, chunk_size: int = 3000) -> list:
+    """긴 텍스트를 chunk_size 글자 단위로 분할"""
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def summarize_long(content: str, max_tokens: int = 1500) -> str:
+    """긴 문서를 청킹해서 요약 후 합치기"""
+    EST_CHARS_PER_TOKEN = 2
+    if len(content) <= max_tokens * EST_CHARS_PER_TOKEN:
+        return summarize_text(content)
+
+    chunks = chunk_text(content)
+    print(f"⚠️  문서가 길어서 {len(chunks)}개로 분할 처리합니다.")
+
+    chunk_summaries = []
+    for i, chunk in enumerate(chunks, 1):
+        print(f"  [{i}/{len(chunks)}] 청크 요약 중...")
+        chunk_summaries.append(summarize_text(chunk))
+
+    combined = "\n".join(chunk_summaries)
+    return summarize_text(combined)
+
+
+def call_groq_api_safe(prompt: str) -> str:
+    """KeyError 안전처리 버전"""
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.getenv('GROQ_API_KEY')}"
+    }
+    body = {
+        "model": "llama-3.3-70b-versatile",
+        "max_tokens": 1500,
+        "messages": [{"role": "user", "content": prompt}]
+    }
+
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers, json=body, timeout=30
+        )
+        data = response.json()
+
+        if "choices" not in data:
+            error_msg = data.get("error", {}).get("message", "알 수 없는 오류")
+            raise KeyError(f"API 응답에 choices 없음: {error_msg}")
+
+        return data["choices"][0]["message"]["content"]
+
+    except KeyError as e:
+        print(f"❌ API 응답 형식 오류: {e}")
+        return "(요약 실패 - API 응답 형식 오류)"
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 네트워크 오류: {e}")
+        return "(요약 실패 - 네트워크 오류)"
+
+
+def save_result_json(filepath: str, summary: str, output_path: str = "output/summary.json"):
+    """결과를 JSON으로 저장 (HTML 뷰어에서 읽음)"""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    data = {
+        "filename": os.path.basename(filepath),
+        "summary": summary,
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"💾 결과 저장: {output_path}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("사용법: python3 summarizer.py <파일경로>")
+        sys.exit(1)
+
+    try:
+        result = summarize_file(sys.argv[1])
+        print(result)
+        save_result_json(sys.argv[1], result)
+    except FileNotFoundError as e:
+        print(f"❌ 오류: {e}")
+        sys.exit(1)
+    except ValueError as e:
+        print(f"❌ 오류: {e}")
+        sys.exit(1)
+EOF
+
+cat > ~/projects/ai-summarizer/run.sh << 'EOF'
+
+if [ -z "$1" ]; then
+    echo "사용법: bash run.sh <파일경로>"
+    exit 1
+fi
+
+echo "📄 요약 시작: $1"
+python3 summarizer.py "$1"
+
+if [ $? -eq 0 ]; then
+    echo "✅ 완료. output/index.html을 브라우저에서 열어보세요."
+else
+    echo "❌ 요약 실패"
+    exit 1
+fi
+EOF
+
+chmod +x ~/projects/ai-summarizer/run.sh
+mkdir -p ~/projects/ai-summarizer/output
+cat > ~/projects/ai-summarizer/output/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 요약 결과 뷰어</title>
+    <link rel="stylesheet" href="../viewer.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📄 AI 문서 요약 결과</h1>
+        <div id="result" class="card">
+            <p class="loading">불러오는 중...</p>
+        </div>
+    </div>
+
+    <script>
+        fetch('summary.json')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('result').innerHTML = `
+                    <h2>${data.filename}</h2>
+                    <p class="meta">생성 시각: ${data.generated_at}</p>
+                    <div class="summary">${data.summary}</div>
+                `;
+            })
+            .catch(err => {
+                document.getElementById('result').innerHTML =
+                    '<p class="error">결과를 불러올 수 없습니다. summary.json이 없습니다.</p>';
+            });
+    </script>
+</body>
+</html>
+EOF
+
+cat > ~/projects/ai-summarizer/viewer.css << 'EOF'
+body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: #f4f4f4;
+    margin: 0;
+    padding: 40px;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+h1 {
+    color: #333;
+}
+
+.card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.meta {
+    color: #888;
+    font-size: 0.9em;
+}
+
+.summary {
+    margin-top: 15px;
+    line-height: 1.6;
+}
+
+.loading, .error {
+    color: #999;
+}
+
+.error {
+    color: #d32f2f;
+}
+EOF
+
+cd ~/projects/ai-summarizer
+echo "이것은 테스트 문서입니다. AI 요약기 테스트용 내용입니다." > sample.txt
+bash run.sh sample.txt
+cat output/summary.json
+xdg-open output/index.html
+cd ~/projects/ai-summarizer/output
+python3 -m http.server 8000
+nano ~/projects/ai-summarizer/run.sh
+cat >> ~/devtrace/work_log.txt << 'EOF'
+
+[2026-06-13]
+- ai-summarizer 세션3: static HTML 뷰어 추가 (Shell/HTML/CSS 스택 확보)
+- file:// 로 index.html 열면 fetch가 CORS로 막혀 summary.json 못 읽음
+  → python3 -m http.server로 로컬 서버 띄워서 해결
+EOF
+
+cd ~/projects/ai-summarizer
+cp viewer.css output/viewer.css
+sed -i 's|../viewer.css|viewer.css|' output/index.html
+cd output
+python3 -m http.server 8000
+cd output
+python3 -m http.server 8000
+cd ~/projects/ai-summarizer
+git add .
+git commit -m "viewer.css 경로 수정 (http.server 루트 문제)"
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -10
+cat ~/devtrace/journal/$(date +%Y-%m-%d).md
+clear
+devtrace_export
+grep -n "max_tokens" ~/devtrace/analyze.py
+grep -n "데이터 없음" ~/devtrace/analyze.py | head -5
+grep -n "echo 0" ~/devtrace/collect.sh
+ls -lt ~/devtrace/journal/ | head -5
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -15
+cat ~/devtrace/journal/2026-06-13.md
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -15
+gedit ~/devtrace/analyze.py
+grep -n "temperature" ~/devtrace/analyze.py
+grep -n "금지 문자" ~/devtrace/analyze.py
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -15
+cat >> ~/devtrace/work_log.txt << 'EOF'
+
+[2026-06-13]
+- daily 5회 연속 검증 1차: 다국어 혼입 3/5 발생 (일본어/베트남어), 잘림/placeholder/이모지는 안정적
+- analyze.py 규칙1 강화 + temperature=0.3 추가 후 재검증: 다국어 0/5로 개선
+- Groq API 429 rate limit 1회 발생 (TPM 12000 한도, 연속 호출 시) - 코드 버그 아님, 알려진 한계
+EOF
+
+gedit ~/devtrace/collect.sh
+gedit ~/devtrace/analyze.py
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -20
+ls ~/devtrace/logs/$(date +%Y-%m-%d)/
+cat ~/devtrace/logs/$(date +%Y-%m-%d)/diff_content.txt
+cat ~/devtrace/logs/$(date +%Y-%m-%d)/uncommitted.txt
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -20
+echo "---"
+ls ~/devtrace/logs/$(date +%Y-%m-%d)/
+echo "---"
+cat ~/devtrace/logs/$(date +%Y-%m-%d)/diff_content.txt
+echo "---"
+cat ~/devtrace/logs/$(date +%Y-%m-%d)/uncommitted.txt
+cat >> ~/devtrace/work_log.txt << 'EOF'
+
+[2026-06-13]
+- 이슈5 구현 완료: collect.sh에 diff_content.txt(마지막 커밋 diff)/uncommitted.txt(미커밋+미추적) 생성 추가
+- analyze.py에 두 로그 프롬프트 반영 + 규칙8(구체적 변경 반영) 추가
+- daily 정상 동작 확인, diff_content에 실제 코드 캡처됨
+EOF
+
+fc-list | grep -i nanum
+python3 -c "import matplotlib.font_manager as fm; print([f for f in fm.findSystemFonts() if 'anum' in f])"
+bash ~/devtrace/devtrace.sh weekly 2>&1 | tail -10
+eog ~/devtrace/portfolio/weekly_graph.png &
+gedit ~/devtrace/report.py
+rm -f ~/devtrace/portfolio/weekly_graph.png
+bash ~/devtrace/devtrace.sh weekly 2>&1 | tail -10
+eog ~/devtrace/portfolio/weekly_graph.png &
+type devtrace_export
+gedit ~/.bashrc
+source ~/.bashrc
+type devtrace_export   # 수정 반영 확인
+devtrace_export
+cat /tmp/devtrace_all_code.txt | head -3
+devtrace_export
+cat /tmp/devtrace_all_code.txt | head -3
+devtrace_export
+head -1 /tmp/devtrace_all_code.txt
+type devtrace_export
+ls -l ~/Desktop/
+grep -c "^cat " <(declare -f devtrace_export)
+declare -f devtrace_export | grep -c "cat "
+declare -f devtrace_export | grep "\.\.\."
+gedit ~/.bashrc
+source ~/.bashrc
+declare -f devtrace_export | grep -c "cat "
+devtrace_export
+ls -l ~/devtrace_all_code.txt
+head -1 ~/devtrace_all_code.txt
+xdg-user-dir DESKTOP
+gedit ~/.bashrc
+head -1 ~/devtrace_all_code.txt
+devtrace_export
+source ~/.bashrc
+devtrace_export
+echo "# test comment $(date)" >> ~/projects/ai-summarizer/summarize.py
+echo "테스트용 메모" > ~/projects/ai-summarizer/notes_temp.txt
+git -C ~/projects/ai-summarizer status
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -15
+cat ~/devtrace/logs/$(date +%Y-%m-%d)/uncommitted.txt
+cat ~/devtrace/journal/$(date +%Y-%m-%d).md
+git -C ~/projects/ai-summarizer ls-files
+echo "# test comment $(date)" >> ~/projects/ai-summarizer/summarizer.py
+git -C ~/projects/ai-summarizer status

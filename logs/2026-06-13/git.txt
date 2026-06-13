@@ -1,0 +1,5 @@
+
+## 레포: ai-summarizer
+[12ab465] viewer.css 경로 수정 (http.server 루트 문제) (11:30)
+[83354fa] summarize_file 추가 + FileNotFoundError 처리, 청킹/KeyError 안전처리 (11:06)
+

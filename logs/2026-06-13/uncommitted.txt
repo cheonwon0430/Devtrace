@@ -1,0 +1,17 @@
+
+## ai-summarizer
+### 미커밋 변경 내용 (tracked)
+diff --git a/summarizer.py b/summarizer.py
+index 65f6eb4..a09f8c8 100644
+--- a/summarizer.py
++++ b/summarizer.py
+@@ -113,3 +113,4 @@ if __name__ == "__main__":
+     except ValueError as e:
+         print(f"❌ 오류: {e}")
+         sys.exit(1)
++# test comment 2026. 06. 13. (토) 23:05:07 KST
+
+### 새로 추가된 미추적 파일
+notes_temp.txt
+summarize.py
+

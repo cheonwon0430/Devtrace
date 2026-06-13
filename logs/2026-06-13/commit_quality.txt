@@ -1,0 +1,9 @@
+## 커밋 메시지 품질 체크
+### ai-summarizer
+  ✅ 양호: "viewer.css 경로 수정 (http.server 루트 문제)"
+  ✅ 양호: "summarize_file 추가 + FileNotFoundError 처리, 청킹/KeyError 안전처리"
+  ✅ 양호: "Revert "수정""
+  ⚠️  너무 짧음: "수정" (2자)
+  ✅ 양호: "401/KeyError 수정: .env API 키 추가, gitignore 처리"
+  ✅ 양호: "requirements.txt 추가"
+

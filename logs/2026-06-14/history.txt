@@ -1,0 +1,175 @@
+gedit ~/devtrace/report.py
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_README.md | grep -A 5 "개발 통계"
+grep -l "ai-summarizer" ~/devtrace/journal/20*.md
+gedit ~/devtrace/report.py
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_README.md | grep -A 5 "개발 통계"
+cp ~/devtrace/report.py ~/devtrace/report.py.bak2
+cp ~/devtrace/devtrace.sh ~/devtrace/devtrace.sh.bak
+gedit ~/devtrace/report.py     # 함수 추가 + main() 분기 추가
+gedit ~/devtrace/devtrace.sh   # interview 케이스 추가
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md
+gedit ~/devtrace/report.py
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md
+gedit ~/devtrace/report.py
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_README.md
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | tail -10
+미리보기:
+**A1.** 프로젝트에서 발생한 API 오류 처리와 requests.get()에서 발생하는 예외 처리를 위해 에러 로그를 확인하고, 적절한 예외 처리 코드를 추가하여 오류를 해결하였습니다. 예를 들어, API 키가 잘못된 경우 401 오류가 발생할 수 있으므로, 이에 대한 처리를 추가하였습니다.
+**A2.** `FileNotFoundError`와 `ValueError`를 처리하기 위해, 파일을 읽어올 때 파일이 존재하는지 확인하고, 파일의 내용을 처리할 때 값이 유효한지 확인하는 코드를 추가하였습니다. 또한, 오류가 발생할 경우 적절한 오류 메시지를 출력하여 사용자가 오류를 쉽게 파악할 수 있도록 하였습니다.
+**A3.** 프로젝트에서 Python을 사용한 이유는
+📖 결과 확인: ~/devtrace/portfolio/ai-summarizer_interview.md
+**A3.** 프로젝트에서 Python을 사용한 이유는, Python이 자연어 처리와 관련된 라이브러리가 풍부하여 요약 생성 기능을 쉽게 구현할 수 있었기 때문입니다. 또한, Python의 간결한 문법과 높은 가독성이 프로젝트의 개발 속도와 유지보수를 향상시키는 데 도움이 되었습니다.
+**A4.** `summarize_file` 함수와 `chunk_text` 함수를 추가한 이유는, 파일을 읽어서 요약 생성을 처리하고, 긴 텍스트를 청킹하여 처리하기 위함입니다. 이러한 함수를 추가함으로써, 프로젝트의 기능을 확장하고, 사용자에게 더 편리한 서비스를 제공할 수 있었습니다.
+**A5.** 프로젝트를 진행하면서, 자연어 처리와 관련된 기술을 배울 수 있었고, Git을 사용하여 버전 관리를 하는 방법을 익힐 수 있었습니다. 또한, 프로젝트를 진행하면서 발생하는 오류를 처리하는 방법과, 코드를 작성할 때 가독성과 유지보수를 고려하는 것이 중요하다는 것을 느낄 수 있었습니다. 이러한 경험을 통해, 더 나은 개발자가 되기 위해 노력하겠습니다
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | tail -10
+gedit ~/devtrace/report.py   # 규칙1에 "만족"/"개발" 예시 추가 (2곳: interview, portfolio)
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | grep -E "만족|満足|滿足|好的"
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | grep -E "만족|満足|滿足|好的"
+sleep 90
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | grep -E "만족|満足|滿足|好的"
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cd ~/devtrace
+python3 -c "
+import os, requests
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home()/'devtrace'/'config.env')
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}', 'Content-Type':'application/json'},
+    json={'model':'llama-3.3-70b-versatile','max_tokens':50,'messages':[{'role':'user','content':'hi'}]})
+print(r.status_code)
+print(r.text)
+"
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | grep -E "만족|満足|滿足|好的"
+sleep 180
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+cd ~/devtrace
+python3 -c "
+import os, requests
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home()/'devtrace'/'config.env')
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}', 'Content-Type':'application/json'},
+    json={'model':'llama-3.3-70b-versatile','max_tokens':50,'messages':[{'role':'user','content':'hi'}]})
+print(r.status_code)
+print(r.text)
+"
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer
+cd ~/devtrace
+python3 -c "
+import os, requests
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home()/'devtrace'/'config.env')
+
+big_prompt = '안녕하세요. ' * 1000
+
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}', 'Content-Type':'application/json'},
+    json={'model':'llama-3.3-70b-versatile','max_tokens':1000,'messages':[{'role':'user','content':big_prompt}]})
+print(r.status_code)
+print(r.text[:500])
+"
+cat >> ~/devtrace/work_log.txt << 'EOF'
+
+[2026-06-14]
+- #33 해결: portfolio 통계 regex 사전계산 + 일지 매칭 키워드 분리
+- interview(면접질문생성) 구현 완료, 형식/내용 검증 정상
+- 다국어 패치(call_groq_api temperature, 규칙1 강화), "만족" 한자 변환은 모델 고유 약점으로 잔존(모니터링)
+- Groq TPD 100000/일 한도 소진 경험, TPM/TPD 구분 진단법 확립 (#35)
+- 다음: GitHub push → 템플릿 → 429폴백 → HITL 순서로 PPT PHASE02 약속 기능 구현
+EOF
+
+python3 -c "
+import os, requests
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home()/'devtrace'/'config.env')
+
+big_prompt = '안녕하세요. ' * 1000
+
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}', 'Content-Type':'application/json'},
+    json={'model':'llama-3.3-70b-versatile','max_tokens':1000,'messages':[{'role':'user','content':big_prompt}]})
+print(r.status_code)
+print(r.text[:500])
+"
+devtrace_export
+python3 -c "
+import os, requests
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home()/'devtrace'/'config.env')
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}', 'Content-Type':'application/json'},
+    json={'model':'llama-3.3-70b-versatile','max_tokens':50,'messages':[{'role':'user','content':'hi'}]})
+print(r.status_code, r.json().get('usage', {}).get('total_tokens'), r.text[:200] if r.status_code!=200 else '정상')
+"
+bash ~/devtrace/devtrace.sh interview ai-summarizer 2>&1 | tail -5
+grep -E "만족|満足|滿足|好的|です|した" ~/devtrace/portfolio/ai-summarizer_interview.md
+python3 -c "
+import os, requests
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path.home()/'devtrace'/'config.env')
+r = requests.post('https://api.groq.com/openai/v1/chat/completions',
+    headers={'Authorization': f'Bearer {os.getenv(\"GROQ_API_KEY\")}', 'Content-Type':'application/json'},
+    json={'model':'llama-3.3-70b-versatile','max_tokens':50,'messages':[{'role':'user','content':'hi'}]})
+print(r.status_code, r.json().get('usage', {}).get('total_tokens'), r.text[:200] if r.status_code!=200 else '정상')
+"
+cd ~/devtrace && git remote -v
+cat ~/devtrace/.gitignore
+git status --short | head -5
+git log --oneline -3
+cat .gitignore
+echo "config.env" >> .gitignore
+git rm --cached config.env 2>/dev/null
+echo "결과: $?"
+git status --short
+git ls-files | grep config.env
+git log --all --oneline -- config.env
+git show 9d96dc4:config.env 2>/dev/null | grep GROQ_API_KEY
+grep GROQ_API_KEY ~/devtrace/config.env
+git add .gitignore
+git rm --cached config.env
+git commit -m "config.env를 .gitignore에 추가 (API 키 보호)"
+git push -u origin master
+git remote add origin https://github.com/cheonwon0430/Devtrace.git
+git push -u origin master
+git push -u origin master 2>&1 | grep -A2 -B2 "remote:"
+grep GROQ_API_KEY ~/devtrace/config.env
+git push -u origin master
+grep GROQ_API_KEY ~/devtrace/config.env
+nano ~/devtrace/config.env
+nano ~/devtrace/config.env
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -15
+grep -r "gsk_" ~/projects/ai-summarizer/ 2>/dev/null
+grep GROQ_API_KEY ~/devtrace/config.env
+nano ~/projects/ai-summarizer/.env
+pip install git-filter-repo --break-system-packages
+cd ~/devtrace
+git filter-repo --path config.env --invert-paths --force
+pip3 install git-filter-repo
+cd ~/devtrace
+git filter-repo --path config.env --invert-paths --force
+cd ~/devtrace
+git remote add origin https://github.com/cheonwon0430/Devtrace.git
+git push origin master --force
+git log --all --oneline -- config.env
+git show HEAD:config.env 2>/dev/null || echo "없음"
+git show HEAD~1:config.env 2>/dev/null || echo "없음"
+git show HEAD~2:config.env 2>/dev/null || echo "없음"
+cp ~/devtrace/devtrace.sh ~/devtrace/devtrace.sh.bak
+gedit ~/devtrace/devtrace.sh
