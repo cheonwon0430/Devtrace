@@ -1,4 +1,3 @@
-**A2.** `FileNotFoundError`와 `ValueError`를 처리하기 위해, 파일을 읽어올 때 파일이 존재하는지 확인하고, 파일의 내용을 처리할 때 값이 유효한지 확인하는 코드를 추가하였습니다. 또한, 오류가 발생할 경우 적절한 오류 메시지를 출력하여 사용자가 오류를 쉽게 파악할 수 있도록 하였습니다.
 ERROR_FILE="$OUT_DIR/errors.txt"
         -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -50 > "$ERROR_FILE"
         -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
