@@ -269,8 +269,38 @@ def generate_portfolio(project_name: str, template: str = "default") -> str:
 {template_instruction}
 """
 
+    def portfolio_fallback():
+        if template_content:
+            fallback_text = f"# {project_name}\n\n"
+            for line in template_content.split('\n'):
+                if line.startswith('#'):
+                    fallback_text += f"{line}\n"
+                elif line.strip():
+                    fallback_text += "(AI 호출 실패 — 직접 작성하세요)\n"
+                else:
+                    fallback_text += "\n"
+            return fallback_text
+        else:
+            return f"""# {project_name}
+
+## 📌 프로젝트 소개
+(AI 호출 실패 — 직접 작성하세요)
+
+## 🛠 기술 스택
+(AI 호출 실패 — 직접 작성하세요)
+
+## ✨ 주요 기능
+(AI 호출 실패 — 직접 작성하세요)
+
+## 📈 개발 통계
+- 개발 기간: {period_str}
+- 총 커밋 수: {total_commits}개
+- 총 수정 파일: {total_files}개
+- 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
+"""
+
     return call_groq_api(prompt, temperature=0.3,
-                     fallback_fn=lambda: f"# {project_name}\n\n⚠️ AI 호출 실패 — 잠시 후 다시 실행하세요.")
+                     fallback_fn=portfolio_fallback)
 
 
 def generate_interview_questions(project_name: str) -> str:
@@ -395,6 +425,11 @@ def main():
         template = sys.argv[3] if len(sys.argv) > 3 else "default"
         print(f"🏗  포트폴리오 생성 중: {project_name}")
         readme = generate_portfolio(project_name, template)
+        readme_path = PORTFOLIO_DIR / f"{project_name}_README.md"
+        readme_path.write_text(readme, encoding="utf-8")
+        print(f"✅ 포트폴리오 저장: {readme_path}")
+        print("\n미리보기:")
+        print(readme[:600])
 
     elif mode == "interview":
         project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
