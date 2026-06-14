@@ -1705,3 +1705,84 @@ gedit devtrace.sh
 bash ~/devtrace/devtrace.sh daily
 gedit devtrace.sh
 gedit ~/devtrace/devtrace.sh &
+bash ~/devtrace/devtrace.sh daily
+wc -l ~/devtrace/devtrace.sh
+cat 2026-06-14.md
+cat ~/devtrace/journal/2026-06-14.md
+cd ~/devtrace && git add devtrace.sh && git commit -m "feat: 참고자료 저장 (zenity 파일선택 + URL 입력)"
+bash devtrace.sh push
+mkdir -p ~/devtrace/templates
+cat > ~/devtrace/templates/minimal.md << 'EOF'
+
+
+
+
+
+- 개발 기간:
+- 총 커밋 수:
+EOF
+
+cat > ~/devtrace/templates/detailed.md << 'EOF'
+
+
+
+
+
+
+
+
+
+- 개발 기간:
+- 총 커밋 수:
+- 총 수정 파일:
+- 추가된 코드:
+- 삭제된 코드:
+EOF
+
+ls ~/devtrace/templates/
+gedit report.py
+gedit devtrace.sh
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer --template minimal
+cat ~/devtrace/portfolio/ai-summarizer_README.md
+grep -n "fallback_fn" ~/devtrace/report.py | head -5
+grep -n "template_instruction" ~/devtrace/report.py
+sed -n '215,275p' ~/devtrace/report.py
+grep -n "template_content" ~/devtrace/report.py | head -10
+grep -n "def generate_portfolio" ~/devtrace/report.py
+grep -n "generate_portfolio" ~/devtrace/report.py
+sed -n '390,400p' ~/devtrace/report.py
+grep -n "report.py portfolio" ~/devtrace/devtrace.sh
+python3 ~/devtrace/report.py portfolio ai-summarizer minimal
+cd ~/devtrace && git add devtrace.sh report.py templates/ && git commit -m "feat: 포트폴리오 템플릿 옵션 (--template minimal/detailed/커스텀)"
+python3 ~/devtrace/report.py portfolio ai-summarizer minimal
+~/devtrace/report.py portfolio ai-summarizer minimal
+gedit report.py
+python3 ~/devtrace/report.py portfolio ai-summarizer minimal
+cat ~/devtrace/portfolio/ai-summarizer_README.md
+ls -lt ~/devtrace/portfolio/
+sed -n '270,285p' ~/devtrace/report.py
+sed -n '160,170p' ~/devtrace/report.py
+gedit report.py
+python3 ~/devtrace/report.py portfolio ai-summarizer minimal
+cat ~/devtrace/portfolio/ai-summarizer_README.md
+python3 ~/devtrace/report.py portfolio ai-summarizer minimal 2>&1
+sed -n '395,410p' ~/devtrace/report.py
+grep -n "readme_path" ~/devtrace/report.py
+grep -n "README\|readme\|portfolio.*write\|write.*portfolio" ~/devtrace/report.py
+sed -n '425,440p' ~/devtrace/report.py
+gedit report.py
+python3 ~/devtrace/report.py portfolio ai-summarizer minimal
+gedit report.py
+cd ~/devtrace && git add report.py && git commit -m "feat: 포트폴리오 템플릿 폴백 뼈대 저장, 파일 저장 누락 수정"
+python3 ~/devtrace/report.py portfolio ai-summarizer detail
+python3 ~/devtrace/report.py portfolio ai-summarizer detailed
+cd ~/devtrace && git add report.py devtrace.sh templates/ && git commit -m "feat: 포트폴리오 템플릿 옵션 완료 (--template minimal/detailed/커스텀)" && bash devtrace.sh push
+grep -n "template" ~/devtrace/devtrace.sh
+grep -n "portfolio" ~/devtrace/devtrace.sh
+gedit devtrace.sh
+devtrace_export
+curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AQ.Ab8RN6JZSq4aZ7GGScKIFqUIvJGQjuzLjDYOzfzZBzVxa-7NbQ"   -H 'Content-Type: application/json'   -X POST   -d '{"contents":[{"parts":[{"text":"안녕하세요, 한국어로 짧게 답해주세요."}]}]}'   | python3 -m json.tool | head -20
+curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AQ.Ab8RN6L7xb5breziKLaDVj2yGK66P631Eh8EocAVJIEek4Zppg"   -H 'Content-Type: application/json'   -X POST   -d '{"contents":[{"parts":[{"text":"안녕하세요, 한국어로 짧게 답해주세요."}]}]}'   | python3 -m json.tool | head -20
+nano ~/devtrace/config.env
+python3 ~/devtrace/report.py portfolio ai-summarizer detailed
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -20

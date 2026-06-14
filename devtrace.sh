@@ -225,6 +225,7 @@ case "${1:-daily}" in
         echo "  devtrace.sh regenerate 2026-04-12      → 일지 재생성"
         echo "  devtrace.sh weekly                     → 주간 리포트"
         echo "  devtrace.sh portfolio 프로젝트이름     → 포트폴리오 생성"
+        echo "  devtrace.sh portfolio 프로젝트이름 --template minimal  → 템플릿 적용"
         echo "  devtrace.sh interview 프로젝트이름     → 면접 질문 생성"
         echo "  devtrace.sh start                      → 파일 감시 데몬 시작"
         echo "  devtrace.sh stop                       → 데몬 종료"
