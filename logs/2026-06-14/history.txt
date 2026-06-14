@@ -3137,3 +3137,23 @@ cat /home/user/devtrace/journal/2026-06-14.md
 bash ~/devtrace/devtrace.sh 
 bash ~/devtrace/devtrace.sh push
 git -C ~/devtrace add -A && git -C ~/devtrace commit -m "--api 옵션 추가: Groq/OpenAI 선택 가능"
+bash ~/devtrace/devtrace.sh daily --api openai
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer --api openai
+bash ~/devtrace/devtrace.sh interview ai-summarizer --api openai
+bash ~/devtrace/devtrace.sh weekly
+bash ~/devtrace/devtrace.sh push
+devtrace.sh push
+bash ~/devtrace/devtrace.sh push
+cat ~/.git-credentials
+git -C ~/devtrace config credential.helper store
+git -C ~/devtrace push origin master
+git -C ~/devtrace config credential.helper store
+git -C ~/devtrace push origin master
+sed -n '1783,1786p' ~/devtrace/logs/2026-06-14/history.txt
+git -C ~/devtrace push origin master
+bash ~/devtrace/devtrace.sh push
+echo "logs/" >> ~/devtrace/.gitignore
+git -C ~/devtrace add .gitignore
+git -C ~/devtrace commit -m "logs/ gitignore 추가 - 보안"
+git -C ~/devtrace push origin master
+devtrace_export
