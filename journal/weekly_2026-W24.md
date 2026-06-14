@@ -9,4 +9,4 @@
 ## 일별 활동
 - **2026-06-12**: 오늘은 주로 Python을 이용하여 여러 가지 작업을 수행하였습니다. 프로세스와 관련된 코드를 작성하였으며, URL 요청에 대한 처리를 하는 스크립트도 구현하였습니다. 또한, Git을 통해 프로젝트를 관리하며, 커밋을 여러 번 수행하였습니다.
 - **2026-06-13**: 오늘은 `summarizer.py` 파일을 수정하여 파일 요약 기능을 개선하였습니다. `summarize_file` 함수를 추가하여 파일을 읽어서 요약 생성을 처리하였고, `FileNotFoundError`와 `ValueError`를 처리하였습니다. 또한 `chunk_text` 함수를 추가하여 긴 텍스트를 청킹하여 처리하였습니다.
-- **2026-06-14**: 오늘은 ai-summarizer 프로젝트에 집중하여 summarizer.py와 summarize.py 파일을 수정했습니다. 개발 과정 자동 기록 시스템인 DevTrace v2.0을 사용하여 일지를 생성했습니다.
+- **2026-06-14**: 오늘은 ai-summarizer 프로젝트에서 summarizer.py와 summarize.py 파일을 수정했습니다. summarizer.py 파일에서 test comment를 추가했습니다.
