@@ -11,7 +11,7 @@ echo "║   개발 과정 자동 기록 시스템     ║"
 echo "╚══════════════════════════════════╝"
 echo ""
 
-case "${1:-daily}" in
+case "${1:-help}" in
 
     "daily")
         echo "🗓  오늘($TODAY) 일지 생성 시작"

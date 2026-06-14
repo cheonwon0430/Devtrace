@@ -31,7 +31,8 @@ except ImportError:
 
 load_dotenv(Path.home() / "devtrace" / "config.env")
 
-API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOG_DIR = Path(os.getenv("LOG_DIR", str(Path.home() / "devtrace/logs")))
 JOURNAL_DIR = Path(os.getenv("JOURNAL_DIR", str(Path.home() / "devtrace/journal")))
 PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/portfolio")))
@@ -39,15 +40,33 @@ PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/port
 PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7,
-                  fallback_fn=None) -> str:
+def get_api_config(provider: str) -> dict:
+    if provider == "openai":
+        return {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "key": OPENAI_API_KEY,
+            "model": "gpt-4o-mini",
+        }
+    else:
+        return {
+            "url": "https://api.groq.com/openai/v1/chat/completions",
+            "key": GROQ_API_KEY,
+            "model": "llama-3.3-70b-versatile",
+        }
+
+
+def call_api(prompt: str, provider: str = "groq", max_tokens: int = 2000,
+             temperature: float = 0.7, fallback_fn=None) -> str:
+    config = get_api_config(provider)
+    print(f"📡 {provider.upper()} API 호출 중...")
+
     def _do_request():
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_KEY}"
+            "Authorization": f"Bearer {config['key']}"
         }
         body = {
-            "model": "llama-3.3-70b-versatile",
+            "model": config["model"],
             "max_tokens": max_tokens,
             "temperature": temperature,
             "messages": [
@@ -59,7 +78,7 @@ def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7,
             ]
         }
         response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
+            config["url"],
             headers=headers,
             json=body,
             timeout=30
@@ -154,11 +173,11 @@ def generate_weekly_report(journals: dict) -> str:
     return report
 
 
-def generate_portfolio(project_name: str, template: str = "default") -> str:
+def generate_portfolio(project_name: str, template: str = "default",
+                       provider: str = "groq") -> str:
     project_journals = []
     journal_dates = []
 
-    # 템플릿 로드
     template_content = ""
     if template != "default":
         template_path = Path.home() / "devtrace" / "templates" / f"{template}.md"
@@ -167,8 +186,7 @@ def generate_portfolio(project_name: str, template: str = "default") -> str:
             print(f"📄 템플릿 적용: {template}.md")
         else:
             print(f"⚠️  템플릿을 찾을 수 없습니다: {template}.md")
-            print(f"   기본 방식으로 생성합니다.")
-            
+
     for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
         project_journals.append(md_file.read_text(encoding="utf-8"))
 
@@ -215,7 +233,6 @@ def generate_portfolio(project_name: str, template: str = "default") -> str:
     if len(all_content) > 8000:
         all_content = all_content[:8000] + "\n...(이하 생략)"
 
-    # 템플릿 지시문 구성
     if template_content:
         template_instruction = f"""
 [템플릿 규칙]
@@ -248,7 +265,7 @@ def generate_portfolio(project_name: str, template: str = "default") -> str:
 """
 
     prompt = f"""당신은 개발자의 개발 일지를 읽고 GitHub 포트폴리오 README를 작성하는 전문가입니다.
-    
+
 아래는 "{project_name}" 프로젝트 관련 개발 일지 모음입니다.
 
 {all_content}
@@ -299,11 +316,11 @@ def generate_portfolio(project_name: str, template: str = "default") -> str:
 - 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
 """
 
-    return call_groq_api(prompt, temperature=0.3,
-                     fallback_fn=portfolio_fallback)
+    return call_api(prompt, provider=provider, temperature=0.3,
+                    fallback_fn=portfolio_fallback)
 
 
-def generate_interview_questions(project_name: str) -> str:
+def generate_interview_questions(project_name: str, provider: str = "groq") -> str:
     project_journals = []
 
     for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
@@ -319,7 +336,7 @@ def generate_interview_questions(project_name: str) -> str:
             project_journals.append(f"[{md_file.stem}]\n{content}")
 
     if not project_journals:
-        return f"'{project_name}' 관련 일지를 찾을 수 없습니다. portfolio가 정상 동작하는지 먼저 확인하세요."
+        return f"'{project_name}' 관련 일지를 찾을 수 없습니다."
 
     all_content = "\n\n---\n\n".join(project_journals)
     if len(all_content) > 8000:
@@ -368,8 +385,8 @@ def generate_interview_questions(project_name: str) -> str:
 **A5.**
 """
 
-    return call_groq_api(prompt, max_tokens=3000, temperature=0.3,
-                     fallback_fn=lambda: f"# {project_name} 면접 예상 질문\n\n⚠️ AI 호출 실패 — 잠시 후 다시 실행하세요.")
+    return call_api(prompt, provider=provider, max_tokens=3000, temperature=0.3,
+                    fallback_fn=lambda: f"# {project_name} 면접 예상 질문\n\n⚠️ AI 호출 실패 — 잠시 후 다시 실행하세요.")
 
 
 def draw_weekly_graph(journals: dict):
@@ -408,7 +425,15 @@ def draw_weekly_graph(journals: dict):
 
 
 def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "weekly"
+    args = sys.argv[1:]
+
+    # api provider 파싱 (마지막 인자가 groq/openai면 provider로 처리)
+    api_provider = "groq"
+    if args and args[-1] in ("groq", "openai"):
+        api_provider = args[-1]
+        args = args[:-1]
+
+    mode = args[0] if args else "weekly"
 
     if mode == "weekly":
         print("📊 주간 리포트 생성 중...")
@@ -421,10 +446,10 @@ def main():
         draw_weekly_graph(journals)
 
     elif mode == "portfolio":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
-        template = sys.argv[3] if len(sys.argv) > 3 else "default"
-        print(f"🏗  포트폴리오 생성 중: {project_name}")
-        readme = generate_portfolio(project_name, template)
+        project_name = args[1] if len(args) > 1 else "My Project"
+        template = args[2] if len(args) > 2 else "default"
+        print(f"🏗  포트폴리오 생성 중: {project_name} [API: {api_provider}]")
+        readme = generate_portfolio(project_name, template, provider=api_provider)
         readme_path = PORTFOLIO_DIR / f"{project_name}_README.md"
         readme_path.write_text(readme, encoding="utf-8")
         print(f"✅ 포트폴리오 저장: {readme_path}")
@@ -432,9 +457,9 @@ def main():
         print(readme[:600])
 
     elif mode == "interview":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
-        print(f"🎤 면접 질문 생성 중: {project_name}")
-        result = generate_interview_questions(project_name)
+        project_name = args[1] if len(args) > 1 else "My Project"
+        print(f"🎤 면접 질문 생성 중: {project_name} [API: {api_provider}]")
+        result = generate_interview_questions(project_name, provider=api_provider)
         result_path = PORTFOLIO_DIR / f"{project_name}_interview.md"
         result_path.write_text(result, encoding="utf-8")
         print(f"✅ 면접 질문 저장: {result_path}")

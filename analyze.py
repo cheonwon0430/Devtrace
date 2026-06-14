@@ -12,11 +12,27 @@ from dotenv import load_dotenv
 
 load_dotenv(Path.home() / "devtrace" / "config.env")
 
-API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOG_DIR = Path(os.getenv("LOG_DIR", str(Path.home() / "devtrace/logs")))
 JOURNAL_DIR = Path(os.getenv("JOURNAL_DIR", str(Path.home() / "devtrace/journal")))
 
 JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_api_config(provider: str) -> dict:
+    if provider == "openai":
+        return {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "key": OPENAI_API_KEY,
+            "model": "gpt-4o-mini",
+        }
+    else:
+        return {
+            "url": "https://api.groq.com/openai/v1/chat/completions",
+            "key": GROQ_API_KEY,
+            "model": "llama-3.3-70b-versatile",
+        }
 
 
 def read_file(path: Path) -> str:
@@ -302,14 +318,17 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 {instruction}"""
 
 
-def call_groq_api(prompt: str, fallback_fn=None, temperature: float = 0.3) -> str:
+def call_api(prompt: str, provider: str = "groq", fallback_fn=None, temperature: float = 0.3) -> str:
+    config = get_api_config(provider)
+    print(f"📡 {provider.upper()} API 호출 중...")
+
     def _do_request():
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_KEY}"
+            "Authorization": f"Bearer {config['key']}"
         }
         body = {
-            "model": "llama-3.3-70b-versatile",
+            "model": config["model"],
             "max_tokens": 3500,
             "temperature": temperature,
             "messages": [
@@ -321,7 +340,7 @@ def call_groq_api(prompt: str, fallback_fn=None, temperature: float = 0.3) -> st
             ]
         }
         response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
+            config["url"],
             headers=headers,
             json=body,
             timeout=30
@@ -367,6 +386,19 @@ def save_journal(filename: str, content: str) -> Path:
 
 def main():
     args = sys.argv[1:]
+
+    # --api 옵션 파싱
+    api_provider = "groq"
+    filtered_args = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--api" and i + 1 < len(args):
+            api_provider = args[i + 1]
+            i += 2
+        else:
+            filtered_args.append(args[i])
+            i += 1
+    args = filtered_args
 
     if not args:
         mode = "daily"
@@ -437,9 +469,9 @@ def main():
         journal_content = generate_empty_template(mode, label, logs)
     else:
         prompt = build_prompt(mode, logs, label)
-        print("📡 Groq API 호출 중...")
-        journal_content = call_groq_api(
+        journal_content = call_api(
             prompt,
+            provider=api_provider,
             fallback_fn=lambda: generate_empty_template(mode, label, logs)
         )
 

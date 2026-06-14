@@ -29,3 +29,23 @@ except ImportError:
             raise Exception(f"API 오류: {response.status_code} - {response.text}")
     except Exception as e:
                 except Exception as e2:
+        content = path.read_text(encoding="utf-8", errors="ignore").strip()
+        "errors":         read_file(log_subdir / "errors.txt"),
+        "error_patterns": read_file(log_subdir / "error_patterns.txt"),
+{logs['errors'][:400]}
+{logs['error_patterns'][:300]}
+            raise Exception(f"API 오류: {response.status_code} - {response.text}")
+    except Exception as e:
+                except Exception as e2:
+        content = path.read_text(encoding="utf-8", errors="ignore").strip()
+        "errors":         read_file(log_subdir / "errors.txt"),
+        "error_patterns": read_file(log_subdir / "error_patterns.txt"),
+{logs['errors'][:400]}
+{logs['error_patterns'][:300]}
+            raise Exception(f"API 오류: {response.status_code} - {response.text}")
+    except Exception as e:
+                except Exception as e2:
+except ImportError:
+            raise Exception(f"API 오류: {response.status_code} - {response.text}")
+    except Exception as e:
+                except Exception as e2:
