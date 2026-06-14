@@ -49,3 +49,11 @@ except ImportError:
             raise Exception(f"API 오류: {response.status_code} - {response.text}")
     except Exception as e:
                 except Exception as e2:
+    except Exception:
+  .toast.error   { border-color: #ff6b6b; color: #ff6b6b; }
+    showToast('프로젝트 이름을 입력하세요', 'error');
+        except Exception as e:
+    except Exception:
+  .toast.error   { border-color: #ff6b6b; color: #ff6b6b; }
+    showToast('프로젝트 이름을 입력하세요', 'error');
+        except Exception as e:

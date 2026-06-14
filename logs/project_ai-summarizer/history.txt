@@ -1,300 +1,300 @@
-    filepath.write_text(content, encoding="utf-8")
-    return filepath
-def main():
-    args = sys.argv[1:]
-    if not args:
-        mode = "daily"
-        today = datetime.now().strftime("%Y-%m-%d")
-        log_subdir = LOG_DIR / today
-        label = today
-        filename = f"{today}.md"
-    elif args[0] == "full":
-        mode = "full"
-        log_subdir = LOG_DIR / "full"
-        label = "
-        filename = "full_summary.md"
-    elif args[0] == "range":
-        if len(args) < 3:
-            print("
-: analyze.py range 2026-04-01 2026-04-12")
-            sys.exit(1)
-        mode = "range"
-        date_from, date_to = args[1], args[2]
-        log_subdir = LOG_DIR / f"range_{date_from}_{date_to}"
-        label = f"{date_from} ~ {date_to}"
-        filename = f"range_{date_from}_{date_to}.md"
-: {label}")
-    elif args[0] == "project":
-        if len(args) < 2:
-: analyze.py project 
-        mode = "project"
-        project_name = args[1]
-        log_subdir = LOG_DIR / f"project_{project_name}"
-        label = project_name
-        filename = f"project_{project_name}.md"
-: {project_name}")
-    elif args[0] == "regenerate":
-        target = args[1] if len(args) > 1 else datetime.now().strftime("%Y-%m-%d")
-: {target}")
-        if target.startswith("project_"):
-            mode = "project"
-            log_subdir = LOG_DIR / target
-            label = target.replace("project_", "")
-            filename = f"{target}.md"
-        else:
-            mode = "daily"
-            label = target
-        date_str = args[0]
-        log_subdir = LOG_DIR / date_str
-        label = date_str
-        filename = f"{date_str}.md"
-: {date_str}")
-    if not log_subdir.exists():
-: {log_subdir}")
-        print("   collect.sh
-    logs = load_logs(log_subdir)
-    if all(v == "(
-)" for v in logs.values()):
-    if not has_meaningful_history(logs["history"]):
-        journal_content = generate_empty_template(mode, label, logs)
-        prompt = build_prompt(mode, logs, label)
- Groq API 
-        journal_content = call_groq_api(prompt)
-    save_journal(filename, journal_content)
-    print("\n" + "="*50)
-    print(journal_content[:500] + "...")
-    print("="*50)
-    main()
-#1781410760
-cat > ~/devtrace/report.py << 'ENDOFFILE'
-# ~/devtrace/report.py
-from datetime import datetime, timedelta
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    import matplotlib.font_manager as fm
-    nanum_fonts = [f for f in fm.findSystemFonts() if 'Nanum' in f or 'nanum' in f]
-    preferred = [f for f in nanum_fonts if 'NanumGothic.ttf' in f or 'NanumSquareR.ttf' in f]
-    font_path = preferred[0] if preferred else (nanum_fonts[0] if nanum_fonts else None)
-    if font_path:
-        fm.fontManager.addfont(font_path)
-        plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
-        plt.rcParams['font.family'] = 'DejaVu Sans'
-    plt.rcParams['axes.unicode_minus'] = False
-    HAS_MATPLOTLIB = True
-except ImportError:
-    HAS_MATPLOTLIB = False
-PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/portfolio")))
-PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
-def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-: {response.status_code}")
-    return response.json()["choices"][0]["message"]["content"]
-def load_week_journals(week_offset: int = 0) -> dict:
-    today = datetime.now() - timedelta(weeks=week_offset)
-    monday = today - timedelta(days=today.weekday())
-    journals = {}
-    for i in range(7):
-        date = monday + timedelta(days=i)
-        date_str = date.strftime("%Y-%m-%d")
-        filepath = JOURNAL_DIR / f"{date_str}.md"
-        if filepath.exists():
-            journals[date_str] = filepath.read_text(encoding="utf-8")
-    return journals
-def generate_weekly_report(journals: dict) -> str:
-    if not journals:
-        return "
-    dates = sorted(journals.keys())
-    week_start = dates[0]
-    week_end = dates[-1]
-    total_files = 0
-    total_commits = 0
-    prev_journals = load_week_journals(week_offset=1)
-    for content in journals.values():
-        m = re.search(r'
-.*?(\d+)', content)
-        if m: total_files += int(m.group(1))
-        m = re.search(r'Git 
-        if m: total_commits += int(m.group(1))
-    prev_commits = 0
-    for content in prev_journals.values():
-        if m: prev_commits += int(m.group(1))
-    if prev_commits > 0:
-        growth = ((total_commits - prev_commits) / prev_commits) * 100
-        growth_str = f"+{growth:.0f}% 
-" if growth > 0 else f"{growth:.0f}% 
-        growth_str = "
-    report = f"""# 
- ({week_start} ~ {week_end})
-: {len(journals)}
- {total_commits}
-: {growth_str}
-    for date, content in sorted(journals.items()):
-        section = re.search(r'## 
-\n(.*?)\n##', content, re.DOTALL)
-        summary = section.group(1).strip() if section else "
-        first_line = summary.split('\n')[0]
-        report += f"- **{date}**: {first_line}\n"
-    return report
-def generate_portfolio(project_name: str) -> str:
-    project_journals = []
-    journal_dates = []
-    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
-        project_journals.append(md_file.read_text(encoding="utf-8"))
-    keywords = [k for k in re.split(r'[-_]', project_name.lower()) if len(k) >= 3]
-    if not keywords:
-        keywords = [project_name.lower()]
-    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
-        content = md_file.read_text(encoding="utf-8")
-        if any(k in content.lower() for k in keywords):
-            project_journals.append(f"[{md_file.stem}]\n{content}")
-            m = re.match(r'(\d{4}-\d{2}-\d{2})', md_file.stem)
-            if m:
-                journal_dates.append(m.group(1))
-    if not project_journals:
-        return f"'{project_name}' 
-    total_added = 0
-    total_deleted = 0
-    for content in project_journals:
-        if m: total_added += int(m.group(1))
-        if m: total_deleted += int(m.group(1))
-    if journal_dates:
-        journal_dates_sorted = sorted(set(journal_dates))
-        if len(journal_dates_sorted) == 1:
-            period_str = f"{journal_dates_sorted[0]} (1
-            period_str = f"{journal_dates_sorted[0]} ~ {journal_dates_sorted[-1]} ({len(journal_dates_sorted)}
-        period_str = "
-    all_content = "\n\n---\n\n".join(project_journals)
-    if len(all_content) > 8000:
-        all_content = all_content[:8000] + "\n...(
-    prompt = f"""
- GitHub 
- README
- "{project_name}" 
-{all_content}
- (Python/Git/API 
-: {period_str}
-: {total_commits}
-: {total_added}
-: {total_deleted}
-# {project_name}
-    return call_groq_api(prompt, temperature=0.3)
-def generate_interview_questions(project_name: str) -> str:
-. portfolio
-   - 
-5. placeholder 
-# {project_name} 
-### Q1.
-**A1.**
-### Q2.
-**A2.**
-### Q3.
-**A3.**
-### Q4.
-**A4.**
-### Q5.
-**A5.**
-        return call_groq_api(prompt, max_tokens=3000, temperature=0.3)
-        return f"
-: {e}\n\n
-def draw_weekly_graph(journals: dict):
-    if not HAS_MATPLOTLIB:
-  matplotlib 
-        return
-    dates = []
-    commits = []
-        dates.append(date[5:])
-        commits.append(int(m.group(1)) if m else 0)
-    if not dates or all(c == 0 for c in commits):
-    fig, ax = plt.subplots(figsize=(10, 4))
-    bars = ax.bar(dates, commits, color='#4CAF50', alpha=0.8)
-    ax.set_title('
-', fontsize=14, pad=15)
-    ax.set_xlabel('
-    ax.set_ylabel('
-    for bar, val in zip(bars, commits):
-        if val > 0:
-            ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.05,
-                   str(val), ha='center', va='bottom')
-    plt.tight_layout()
-    graph_path = PORTFOLIO_DIR / "weekly_graph.png"
-    plt.savefig(graph_path, dpi=150)
-    plt.close()
-: {graph_path}")
-    mode = sys.argv[1] if len(sys.argv) > 1 else "weekly"
-    if mode == "weekly":
-        journals = load_week_journals()
-        report = generate_weekly_report(journals)
-        week_num = datetime.now().strftime("%Y-W%U")
-        filepath = JOURNAL_DIR / f"weekly_{week_num}.md"
-        filepath.write_text(report, encoding="utf-8")
-        draw_weekly_graph(journals)
-    elif mode == "portfolio":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
-        readme = generate_portfolio(project_name)
-        readme_path = PORTFOLIO_DIR / f"{project_name}_README.md"
-        readme_path.write_text(readme, encoding="utf-8")
-: {readme_path}")
-        print("\n
-        print(readme[:600])
-    elif mode == "interview":
-        result = generate_interview_questions(project_name)
-        result_path = PORTFOLIO_DIR / f"{project_name}_interview.md"
-        result_path.write_text(result, encoding="utf-8")
-: {result_path}")
-        print(result[:600])
-        print("  report.py weekly              
-        print("  report.py portfolio [
-]    
-        print("  report.py interview [
- report.py 
-#1781410776
-python3 -c "import ast; ast.parse(open('/home/user/devtrace/analyze.py').read()); print('analyze.py 
-python3 -c "import ast; ast.parse(open('/home/user/devtrace/report.py').read()); print('report.py 
-grep -n "temperature" ~/devtrace/analyze.py ~/devtrace/report.py
-grep -n "generate_interview_questions\|interview" ~/devtrace/report.py | head -5
-grep -n "diff_content\|uncommitted" ~/devtrace/collect.sh | head -5
-grep -n "interview\|push origin" ~/devtrace/devtrace.sh | head -10
-#1781410799
-#1781411066
-#1781411162
-grep -n "push\|
-" ~/devtrace/devtrace.sh
-#1781411191
-bash ~/devtrace/devtrace.sh push
-#1781411265
-grep -n "git add" ~/devtrace/devtrace.sh
-#1781411302
-#1781411356
-#1781411618
-git -C ~/projects/ai-summarizer log --oneline
-#1781411641
-bash ~/devtrace/devtrace.sh project ai-summarizer 2>&1 | tail -20
-#1781411676
-head -30 ~/devtrace/journal/project_ai-summarizer.md
-#1781411687
-grep -c "summarizer\|groq\|python\|pip\|venv" ~/devtrace/logs/project_ai-summarizer/history.txt
-#1781411711
-#1781411752
-#1781411810
-rm -rf ~/devtrace/logs/project_ai-summarizer
-bash ~/devtrace/devtrace.sh project ai-summarizer 2>&1 | tail -5
-#1781411825
-#1781411884
-#1781411905
-wc -l ~/devtrace/logs/project_ai-summarizer/history.txt
-head -20 ~/devtrace/logs/project_ai-summarizer/history.txt
-#1781411940
-#1781411978
-#1781412001
-#1781412019
- bash_history
-head -5 ~/.bash_history
-grep -i "summarizer\|groq\|python3\|pip" ~/.bash_history | head -10
-#1781412046
-file ~/.bash_history
-wc -l ~/.bash_history
-strings ~/.bash_history | grep -i "summarizer\|groq\|python3" | head -10
-#1781412077
+          <div class="cmd-name">daily</div>
+          <div class="cmd-desc">
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'weekly')"
+          <div class="cmd-name">weekly</div>
+    <hr class="sidebar-divider">
+      <button class="cmd-btn" onclick="selectCmd(this,'project')"
+              data-needs-project="true">
+          <div class="cmd-name">project</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'portfolio')"
+          <div class="cmd-name">portfolio</div>
+          <div class="cmd-desc">GitHub README 
+      <button class="cmd-btn" onclick="selectCmd(this,'interview')"
+          <div class="cmd-name">interview</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'push')"
+          <div class="cmd-name">push</div>
+          <div class="cmd-desc">GitHub push</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'status')"
+          <div class="cmd-name">status</div>
+  </nav>
+  <!-- MAIN -->
+  <main>
+    <div class="main-header">
+      <div>
+        <div class="main-title" id="main-title">daily 
+        <div class="main-subtitle" id="main-cmd">$ bash devtrace.sh daily</div>
+      </div>
+      <div class="run-area">
+        <input type="text" class="project-input" id="project-input"
+               placeholder="
+" style="display:none"
+               list="project-list">
+        <datalist id="project-list">
+          {% for p in projects %}
+          <option value="{{ p }}">
+          {% endfor %}
+        </datalist>
+        <button class="run-btn" id="run-btn" onclick="runCommand()">
+          <div class="spinner"></div>
+          <span class="btn-text">
+        </button>
+    <div class="terminal-wrap">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title" id="terminal-title">
+        <button class="clear-btn" onclick="clearTerminal()">clear</button>
+      <div id="terminal">
+        <div class="empty-state">
+          <div class="empty-icon">
+          <p>
+</p>
+  </main>
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-header">
+    <div class="journal-list" id="journal-list">
+      {% if journals %}
+        {% for j in journals %}
+        <div class="journal-item" onclick="loadJournal('{{ j.path }}', this)">
+          <div class="journal-dot"></div>
+          <div class="journal-date">{{ j.name }}</div>
+          <div class="journal-size">{{ (j.size / 1024) | round(1) }}KB</div>
+        {% endfor %}
+      {% else %}
+        <div class="journal-preview-empty">
+      {% endif %}
+    <div id="journal-preview" class="journal-preview-empty">
+      
+<div class="toast" id="toast"></div>
+<script>
+let currentCmd = 'daily';
+let currentApi = 'groq';
+let isRunning = false;
+function setApi(api) {
+  currentApi = api;
+  document.getElementById('btn-groq').classList.toggle('active', api === 'groq');
+  document.getElementById('btn-openai').classList.toggle('active', api === 'openai');
+  showToast(api === 'groq' ? 'Groq (llama-3.3-70b)' : 'OpenAI (gpt-4o-mini)', 'success');
+const CMD_META = {
+  daily:     { title: 'daily 
+',       cmd: '$ bash devtrace.sh daily',          needsProject: false },
+  weekly:    { title: 'weekly 
+',          cmd: '$ bash devtrace.sh weekly',         needsProject: false },
+  project:   { title: 'project 
+',       cmd: '$ bash devtrace.sh project <
+>', needsProject: true  },
+  portfolio: { title: 'portfolio 
+ GitHub README',    cmd: '$ bash devtrace.sh portfolio <
+>',needsProject: true  },
+  interview: { title: 'interview 
+',    cmd: '$ bash devtrace.sh interview <
+  push:      { title: 'push 
+ GitHub push',           cmd: '$ bash devtrace.sh push',           needsProject: false },
+  status:    { title: 'status 
+',            cmd: '$ bash devtrace.sh status',         needsProject: false },
+function selectCmd(el, cmd) {
+  document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentCmd = cmd;
+  const m = CMD_META[cmd];
+  document.getElementById('main-title').textContent = m.title;
+  document.getElementById('main-cmd').textContent = m.cmd;
+  const inp = document.getElementById('project-input');
+  inp.style.display = m.needsProject ? 'block' : 'none';
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">
+</div><p>
+</p></div>';
+  document.getElementById('terminal-title').textContent = '
+function appendLine(text, cls) {
+  const t = document.getElementById('terminal');
+  // clear empty state on first output
+  if (t.querySelector('.empty-state')) t.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = cls || 'line-plain';
+  div.textContent = text;
+  t.appendChild(div);
+  t.scrollTop = t.scrollHeight;
+function classifyLine(line) {
+  if (!line) return 'line-plain';
+  if (line.startsWith('
+') || line.startsWith('
+')) return 'line-ok';
+')) return 'line-err';
+') ||
+      line.startsWith('
+      line.startsWith('[') || line.startsWith('
+')) return 'line-info';
+  if (line.startsWith('$') || line.startsWith('#')) return 'line-cmd';
+  return 'line-plain';
+async function runCommand() {
+  if (isRunning) return;
+  const projectName = document.getElementById('project-input').value.trim();
+  if (CMD_META[currentCmd].needsProject && !projectName) {
+    showToast('
+', 'error');
+    document.getElementById('project-input').focus();
+    return;
+  isRunning = true;
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('running');
+  btn.disabled = true;
+  const term = document.getElementById('terminal');
+  term.innerHTML = '';
+  const now = new Date().toLocaleTimeString('ko-KR');
+  document.getElementById('terminal-title').textContent =
+    `${currentCmd} 
+ ${now}`;
+  const cmdStr = CMD_META[currentCmd].cmd
+    .replace('<
+>', projectName)
+    .replace('$ ', '');
+  appendLine('$ ' + cmdStr + (currentApi !== 'groq' ? ' --api ' + currentApi : ''), 'line-cmd');
+  appendLine('', 'line-plain');
+  try {
+    const params = new URLSearchParams({
+      cmd: currentCmd,
+      project: projectName,
+      api: currentApi,
+    });
+    const res = await fetch('/run?' + params);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      chunk.split('\\n').forEach(line => {
+        appendLine(line, classifyLine(line));
+      });
+  } catch (e) {
+    appendLine('
+: ' + e.message, 'line-err');
+  } finally {
+    isRunning = false;
+    btn.classList.remove('running');
+    btn.disabled = false;
+    appendLine('', 'line-plain');
+'.repeat(48), 'line-plain');
+    // refresh journal list
+    refreshJournals();
+async function refreshJournals() {
+    const res = await fetch('/journals');
+    const data = await res.json();
+    const list = document.getElementById('journal-list');
+    list.innerHTML = '';
+    data.forEach(j => {
+      const div = document.createElement('div');
+      div.className = 'journal-item';
+      div.onclick = () => loadJournal(j.path, div);
+      div.innerHTML = `
+        <div class="journal-dot"></div>
+        <div class="journal-date">${j.name}</div>
+        <div class="journal-size">${(j.size/1024).toFixed(1)}KB</div>
+      `;
+      list.appendChild(div);
+  } catch(e) {}
+async function loadJournal(path, el) {
+  document.querySelectorAll('.journal-item').forEach(i => i.classList.remove('active'));
+    const res = await fetch('/journal?path=' + encodeURIComponent(path));
+    const text = await res.text();
+    const preview = document.getElementById('journal-preview');
+    preview.className = 'journal-preview';
+    preview.textContent = text.slice(0, 2000) + (text.length > 2000 ? '\\n\\n...(
+)' : '');
+  } catch(e) {
+    document.getElementById('journal-preview').textContent = '
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => { t.className = 'toast'; }, 2200);
+// keyboard shortcut: Enter to run
+document.getElementById('project-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runCommand();
+</script>
+</body>
+</html>"""
+@app.route("/")
+def index():
+    return render_template_string(
+        HTML,
+        journals=get_journals(),
+        projects=get_projects(),
+@app.route("/run")
+def run():
+    cmd = request.args.get("cmd", "daily")
+    project = request.args.get("project", "")
+    api = request.args.get("api", "groq")
+    allowed = {"daily", "weekly", "project", "portfolio", "interview", "push", "status"}
+    if cmd not in allowed:
+        return Response("
+", status=400)
+    args = ["bash", DEVTRACE_SH, cmd]
+    if cmd in ("project", "portfolio", "interview") and project:
+        args.append(project)
+    if api in ("groq", "openai") and cmd in ("daily", "project", "portfolio", "interview"):
+        args += ["--api", api]
+    def generate():
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(DEVTRACE_DIR),
+            )
+            for line in iter(proc.stdout.readline, ""):
+                yield line
+            proc.wait()
+            if proc.returncode == 0:
+                yield "\n
+                yield f"\n
+: {proc.returncode}\n"
+        except Exception as e:
+            yield f"
+: {e}\n"
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/plain",
+        headers={"X-Accel-Buffering": "no"},
+@app.route("/journals")
+def journals():
+    return jsonify(get_journals())
+@app.route("/journal")
+def journal():
+    path = request.args.get("path", "")
+    p = Path(path)
+    if not p.exists() or not str(p).startswith(str(JOURNAL_DIR)):
+", 404
+    return p.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
+    print("
+     DevTrace Web Dashboard       
+   http://localhost:5000          
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+#1781439270
+#1781439326
+#1781439328
+#1781439355
+#1781439494
+#1781439495
+#1781439515
+# 1. app.py 
+ls -la ~/devtrace/app.py
+# 2. web 
+grep -n "web" ~/devtrace/devtrace.sh
+# 3. Flask 
+python3 -c "import flask; print('Flask OK:', flask.__version__)"
+#1781439531
+pip3 install flask --break-system-packages
+#1781439552
+pip3 install flask
+#1781439565
+bash ~/devtrace/devtrace.sh web
+#1781443063

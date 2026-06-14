@@ -15,4 +15,5 @@
 -- Boot 6cba12edceaa49c3b7aa7c95841b4b6a --
 -- Boot 78c0c742c854456a824fd4c9293a4a7b --
 -- Boot 62de19b08e7e4918922a59a6a47bfa85 --
-except ImportError:
+', 'error');
+        except Exception as e:

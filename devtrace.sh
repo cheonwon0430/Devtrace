@@ -14,9 +14,13 @@ echo ""
 case "${1:-help}" in
 
     "daily")
+        API_OPT="groq"
+        if [ "$2" = "--api" ] && [ -n "$3" ]; then
+            API_OPT="$3"
+        fi
         echo "🗓  오늘($TODAY) 일지 생성 시작"
         bash ~/devtrace/collect.sh daily
-        python3 ~/devtrace/analyze.py
+        python3 ~/devtrace/analyze.py --api "$API_OPT"
 
         JOURNAL_FILE="$HOME/devtrace/journal/$TODAY.md"
 
@@ -44,13 +48,11 @@ case "${1:-help}" in
             if [[ "$REF_CHOICE" =~ ^[Yy]$ ]]; then
                 REF_DIR="$HOME/devtrace/references/$TODAY"
                 mkdir -p "$REF_DIR"
-                # 섹션 헤더 먼저 추가
                 if ! grep -q "## 📚 참고 자료" "$JOURNAL_FILE"; then
                     echo "" >> "$JOURNAL_FILE"
                     echo "## 📚 참고 자료" >> "$JOURNAL_FILE"
                 fi
 
-                # 파일 선택 (여러 파일 한 번에)
                 echo "   📂 파일 선택창을 열겠습니다. Ctrl+클릭으로 여러 파일 선택 가능합니다."
                 REF_PATHS=$(zenity --file-selection \
                     --title="참고 자료 파일 선택 (Ctrl+클릭으로 다중 선택)" \
@@ -72,7 +74,6 @@ case "${1:-help}" in
                     echo "   ⏭  파일 선택 생략"
                 fi
 
-                # URL 입력
                 echo "   🌐 참고한 사이트 주소를 입력하세요."
                 while true; do
                     REF_URL=$(zenity --entry \
@@ -94,30 +95,37 @@ case "${1:-help}" in
         echo "📖 일지 확인: $JOURNAL_FILE"
         ;;
 
-
     "full")
+        API_OPT="groq"
+        if [ "$2" = "--api" ] && [ -n "$3" ]; then
+            API_OPT="$3"
+        fi
         echo "📚 전체 히스토리 요약 시작"
         bash ~/devtrace/collect.sh full
-        python3 ~/devtrace/analyze.py full
+        python3 ~/devtrace/analyze.py full --api "$API_OPT"
         echo ""
         echo "📖 결과 확인: ~/devtrace/journal/full_summary.md"
         ;;
 
     "range")
         if [ -z "$2" ] || [ -z "$3" ]; then
-            echo "❌ 사용법: devtrace.sh range 2026-04-01 2026-04-12"
+            echo "❌ 사용법: devtrace.sh range 2026-04-01 2026-04-12 [--api groq|openai]"
             exit 1
+        fi
+        API_OPT="groq"
+        if [ "$4" = "--api" ] && [ -n "$5" ]; then
+            API_OPT="$5"
         fi
         echo "📅 날짜 범위 분석: $2 ~ $3"
         bash ~/devtrace/collect.sh range "$2" "$3"
-        python3 ~/devtrace/analyze.py range "$2" "$3"
+        python3 ~/devtrace/analyze.py range "$2" "$3" --api "$API_OPT"
         echo ""
         echo "📖 결과 확인: ~/devtrace/journal/range_${2}_${3}.md"
         ;;
 
     "project")
         if [ -z "$2" ]; then
-            echo "❌ 사용법: devtrace.sh project 프로젝트이름"
+            echo "❌ 사용법: devtrace.sh project 프로젝트이름 [--api groq|openai]"
             echo ""
             echo "📁 인식된 프로젝트 목록:"
             find "$PROJECT_DIR" -maxdepth 2 -name ".git" -type d 2>/dev/null \
@@ -125,20 +133,28 @@ case "${1:-help}" in
                 | xargs -I{} basename {}
             exit 1
         fi
+        API_OPT="groq"
+        if [ "$3" = "--api" ] && [ -n "$4" ]; then
+            API_OPT="$4"
+        fi
         echo "🔍 프로젝트 분석: $2"
         bash ~/devtrace/collect.sh project "$2"
-        python3 ~/devtrace/analyze.py project "$2"
+        python3 ~/devtrace/analyze.py project "$2" --api "$API_OPT"
         echo ""
         echo "📖 결과 확인: ~/devtrace/journal/project_${2}.md"
         ;;
 
     "regenerate")
         if [ -z "$2" ]; then
-            echo "❌ 사용법: devtrace.sh regenerate 2026-04-12"
+            echo "❌ 사용법: devtrace.sh regenerate 2026-04-12 [--api groq|openai]"
             exit 1
         fi
+        API_OPT="groq"
+        if [ "$3" = "--api" ] && [ -n "$4" ]; then
+            API_OPT="$4"
+        fi
         echo "🔄 재생성: $2"
-        python3 ~/devtrace/analyze.py regenerate "$2"
+        python3 ~/devtrace/analyze.py regenerate "$2" --api "$API_OPT"
         ;;
 
     "weekly")
@@ -148,22 +164,29 @@ case "${1:-help}" in
 
     "portfolio")
         if [ -z "$2" ]; then
-            echo "❌ 사용법: devtrace.sh portfolio 프로젝트이름 [--template 템플릿이름]"
+            echo "❌ 사용법: devtrace.sh portfolio 프로젝트이름 [--template 템플릿이름] [--api groq|openai]"
             echo ""
             echo "   사용 가능한 템플릿:"
             ls ~/devtrace/templates/ 2>/dev/null | sed 's/.md//' | sed 's/^/   - /'
             exit 1
         fi
         TEMPLATE="default"
-        if [ "$3" = "--template" ] && [ -n "$4" ]; then
-            TEMPLATE="$4"
-        fi
-        echo "🏗  포트폴리오 생성: $2 (템플릿: $TEMPLATE)"
-        python3 ~/devtrace/report.py portfolio "$2" "$TEMPLATE"
+        API_OPT="groq"
+        PROJECT="$2"
+        shift 2
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --template) TEMPLATE="$2"; shift 2 ;;
+                --api)      API_OPT="$2";  shift 2 ;;
+                *) shift ;;
+            esac
+        done
+        echo "🏗  포트폴리오 생성: $PROJECT (템플릿: $TEMPLATE, API: $API_OPT)"
+        python3 ~/devtrace/report.py portfolio "$PROJECT" "$TEMPLATE" "$API_OPT"
         echo ""
-        echo "📖 결과 확인: ~/devtrace/portfolio/${2}_README.md"
+        echo "📖 결과 확인: ~/devtrace/portfolio/${PROJECT}_README.md"
         ;;
-        
+
     "push")
         echo "📤 GitHub push 중..."
         cd ~/devtrace
@@ -174,15 +197,27 @@ case "${1:-help}" in
             echo "⚠️  push 실패 (로컬에는 저장됨)"
         ;;
 
+    "web")
+        echo "🌐 DevTrace 웹 대시보드 시작 중..."
+        python3 -c "import flask" 2>/dev/null || pip3 install flask -q
+        echo "   → http://localhost:5000"
+        python3 ~/devtrace/app.py
+        ;;
+
     "interview")
         if [ -z "$2" ]; then
-            echo "❌ 사용법: devtrace.sh interview 프로젝트이름"
+            echo "❌ 사용법: devtrace.sh interview 프로젝트이름 [--api groq|openai]"
             exit 1
         fi
-        echo "🎤 면접 질문 생성: $2"
-        python3 ~/devtrace/report.py interview "$2"
+        API_OPT="groq"
+        PROJECT="$2"
+        if [ "$3" = "--api" ] && [ -n "$4" ]; then
+            API_OPT="$4"
+        fi
+        echo "🎤 면접 질문 생성: $PROJECT (API: $API_OPT)"
+        python3 ~/devtrace/report.py interview "$PROJECT" "$API_OPT"
         echo ""
-        echo "📖 결과 확인: ~/devtrace/portfolio/${2}_interview.md"
+        echo "📖 결과 확인: ~/devtrace/portfolio/${PROJECT}_interview.md"
         ;;
 
     "start")
@@ -218,18 +253,18 @@ case "${1:-help}" in
 
     *)
         echo "사용법:"
-        echo "  devtrace.sh daily                      → 오늘 일지 생성"
-        echo "  devtrace.sh full                       → 전체 히스토리 요약"
-        echo "  devtrace.sh range 2026-04-01 2026-04-12 → 날짜 범위 분석"
-        echo "  devtrace.sh project 프로젝트이름       → 특정 프로젝트 분석"
-        echo "  devtrace.sh regenerate 2026-04-12      → 일지 재생성"
-        echo "  devtrace.sh weekly                     → 주간 리포트"
-        echo "  devtrace.sh portfolio 프로젝트이름     → 포트폴리오 생성"
-        echo "  devtrace.sh portfolio 프로젝트이름 --template minimal  → 템플릿 적용"
-        echo "  devtrace.sh interview 프로젝트이름     → 면접 질문 생성"
-        echo "  devtrace.sh start                      → 파일 감시 데몬 시작"
-        echo "  devtrace.sh stop                       → 데몬 종료"
-        echo "  devtrace.sh status                     → 상태 확인"
-        echo "  devtrace.sh push                       → GitHub push"
+        echo "  devtrace.sh daily [--api groq|openai]                          → 오늘 일지 생성"
+        echo "  devtrace.sh full [--api groq|openai]                           → 전체 히스토리 요약"
+        echo "  devtrace.sh range 2026-04-01 2026-04-12 [--api groq|openai]   → 날짜 범위 분석"
+        echo "  devtrace.sh project 프로젝트이름 [--api groq|openai]           → 특정 프로젝트 분석"
+        echo "  devtrace.sh regenerate 2026-04-12 [--api groq|openai]         → 일지 재생성"
+        echo "  devtrace.sh weekly                                             → 주간 리포트"
+        echo "  devtrace.sh portfolio 프로젝트이름 [--template minimal] [--api groq|openai]  → 포트폴리오 생성"
+        echo "  devtrace.sh interview 프로젝트이름 [--api groq|openai]         → 면접 질문 생성"
+        echo "  devtrace.sh start                                              → 파일 감시 데몬 시작"
+        echo "  devtrace.sh stop                                               → 데몬 종료"
+        echo "  devtrace.sh status                                             → 상태 확인"
+        echo "  devtrace.sh push                                               → GitHub push"
+        echo "  devtrace.sh web                                                → 웹 대시보드 실행"
         ;;
 esac

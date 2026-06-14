@@ -1,4 +1,13 @@
 
+## ai-summarizer 변경 통계
+ output/index.html   | 32 ++++++++++++++++++++++++++++++++
+ output/summary.json |  5 +++++
+ output/viewer.css   | 40 ++++++++++++++++++++++++++++++++++++++++
+ run.sh              | 21 +++++++++++++++++++++
+ summarizer.py       | 19 +++++++++++++++++++
+ viewer.css          | 40 ++++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 157 insertions(+)
+
 ## testproject 변경 통계
 
 ## test_verify 변경 통계

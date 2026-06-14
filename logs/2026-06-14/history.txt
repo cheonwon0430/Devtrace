@@ -3157,3 +3157,1892 @@ git -C ~/devtrace add .gitignore
 git -C ~/devtrace commit -m "logs/ gitignore 추가 - 보안"
 git -C ~/devtrace push origin master
 devtrace_export
+bash ~/devtrace/devtrace.sh daily --api openai
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+bash ~/devtrace/devtrace.sh weekly
+bash ~/devtrace/devtrace.sh push
+cd ~/devtrace
+git add -A
+git commit -m "v2.11 백업 - Flask 작업 전"
+git push origin master
+bash ~/devtrace/devtrace.sh push
+gedit devtrace.sh
+cat > ~/devtrace/app.py << 'PYEOF'
+
+import subprocess
+import os
+import glob
+from datetime import datetime
+from pathlib import Path
+from flask import Flask, render_template_string, request, jsonify, Response, stream_with_context
+
+app = Flask(__name__)
+
+HOME = Path.home()
+DEVTRACE_DIR = HOME / "devtrace"
+JOURNAL_DIR = DEVTRACE_DIR / "journal"
+PORTFOLIO_DIR = DEVTRACE_DIR / "portfolio"
+DEVTRACE_SH = str(DEVTRACE_DIR / "devtrace.sh")
+
+def get_journals(limit=10):
+    journals = []
+    pattern = str(JOURNAL_DIR / "20*.md")
+    files = sorted(glob.glob(pattern), reverse=True)[:limit]
+    for f in files:
+        p = Path(f)
+        journals.append({
+            "name": p.stem,
+            "path": str(p),
+            "size": p.stat().st_size,
+        })
+    return journals
+
+def get_projects():
+    project_dir_env = os.popen(
+        f"bash -c 'source {DEVTRACE_DIR}/config.env && echo $PROJECT_DIR'"
+    ).read().strip()
+    if not project_dir_env:
+        project_dir_env = str(HOME / "projects")
+    projects = []
+    try:
+        result = subprocess.run(
+            ["find", project_dir_env, "-maxdepth", "3", "-name", ".git", "-type", "d"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                projects.append(Path(line).parent.name)
+    except Exception:
+        pass
+    return projects
+
+HTML = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevTrace</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg:      #0d0d0d;
+    --surface: #141414;
+    --card:    #1a1a1a;
+    --border:  #2a2a2a;
+    --accent:  #e8441a;
+    --accent2: #f5a623;
+    --green:   #3ecf74;
+    --text:    #e8e8e8;
+    --muted:   #666;
+    --mono:    'JetBrains Mono', monospace;
+    --sans:    'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .logo-text {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    letter-spacing: 0.05em;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .status-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── API TOGGLE ── */
+  .api-toggle {
+    display: flex;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .api-toggle button {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .api-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 0;
+    flex: 1;
+    height: calc(100vh - 65px);
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    overflow-y: auto;
+    padding: 20px 0;
+  }
+
+  .sidebar-section {
+    margin-bottom: 8px;
+  }
+
+  .sidebar-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    padding: 0 20px 8px;
+    text-transform: uppercase;
+  }
+
+  .cmd-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 20px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    text-align: left;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+  }
+
+  .cmd-btn:hover { background: var(--card); }
+
+  .cmd-btn.active {
+    background: var(--card);
+    border-left-color: var(--accent);
+    color: #fff;
+  }
+
+  .cmd-icon {
+    font-size: 15px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .cmd-info { flex: 1; min-width: 0; }
+  .cmd-name { font-weight: 600; font-size: 13px; }
+  .cmd-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .sidebar-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 12px 20px;
+  }
+
+  /* ── MAIN ── */
+  main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .main-header {
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .main-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .main-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .run-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .project-input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 180px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .project-input:focus { border-color: var(--accent); }
+  .project-input::placeholder { color: var(--muted); }
+
+  .run-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 20px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .run-btn:hover { opacity: 0.88; }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .run-btn .spinner {
+    width: 13px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  .run-btn.running .spinner { display: block; }
+  .run-btn.running .btn-text { display: none; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── TERMINAL ── */
+  .terminal-wrap {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin: 16px 28px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0a0a0a;
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot-r { background: #ff5f56; }
+  .dot-y { background: #ffbd2e; }
+  .dot-g { background: #27c93f; }
+
+  .terminal-title {
+    margin-left: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .clear-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: var(--mono);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.1s;
+  }
+
+  .clear-btn:hover { color: var(--text); }
+
+  #terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  #terminal::-webkit-scrollbar { width: 4px; }
+  #terminal::-webkit-scrollbar-track { background: transparent; }
+  #terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .line-cmd   { color: var(--accent2); }
+  .line-ok    { color: var(--green); }
+  .line-err   { color: #ff6b6b; }
+  .line-info  { color: #8eb8e8; }
+  .line-plain { color: #c8c8c8; }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-family: var(--mono);
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .journal-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .journal-list::-webkit-scrollbar { width: 3px; }
+  .journal-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .journal-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 20px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+  }
+
+  .journal-item:hover { background: var(--card); }
+  .journal-item.active {
+    background: var(--card);
+    border-left-color: var(--accent2);
+  }
+
+  .journal-date {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .journal-size {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .journal-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent2);
+    flex-shrink: 0;
+  }
+
+  .journal-preview {
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: #aaa;
+    white-space: pre-wrap;
+  }
+
+  .journal-preview::-webkit-scrollbar { width: 3px; }
+  .journal-preview::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .journal-preview-empty {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 11px;
+    padding: 16px 20px;
+    font-family: var(--mono);
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 10px;
+    color: var(--muted);
+  }
+
+  .empty-state .empty-icon { font-size: 32px; opacity: 0.3; }
+  .empty-state p { font-size: 12px; font-family: var(--mono); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-family: var(--mono);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    z-index: 999;
+    pointer-events: none;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: #ff6b6b; color: #ff6b6b; }
+
+  /* ── SCROLLBAR ── */
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-text"><span>Dev</span>Trace</div>
+    <div class="logo-sub">개발 과정 자동 기록 시스템</div>
+  </div>
+  <div class="header-right">
+    <div class="api-toggle">
+      <button id="btn-groq" class="active" onclick="setApi('groq')">Groq</button>
+      <button id="btn-openai" onclick="setApi('openai')">OpenAI</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="status-dot"></div>
+      <span class="status-label">v2.11</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">일지</div>
+      <button class="cmd-btn active" onclick="selectCmd(this,'daily')"
+              data-needs-project="false">
+        <span class="cmd-icon">📅</span>
+        <div class="cmd-info">
+          <div class="cmd-name">daily</div>
+          <div class="cmd-desc">오늘 일지 생성</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'weekly')"
+              data-needs-project="false">
+        <span class="cmd-icon">📊</span>
+        <div class="cmd-info">
+          <div class="cmd-name">weekly</div>
+          <div class="cmd-desc">주간 리포트 생성</div>
+        </div>
+      </button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">프로젝트</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'project')"
+              data-needs-project="true">
+        <span class="cmd-icon">🔍</span>
+        <div class="cmd-info">
+          <div class="cmd-name">project</div>
+          <div class="cmd-desc">프로젝트 단위 분석</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'portfolio')"
+              data-needs-project="true">
+        <span class="cmd-icon">🏗</span>
+        <div class="cmd-info">
+          <div class="cmd-name">portfolio</div>
+          <div class="cmd-desc">GitHub README 생성</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'interview')"
+              data-needs-project="true">
+        <span class="cmd-icon">🎤</span>
+        <div class="cmd-info">
+          <div class="cmd-name">interview</div>
+          <div class="cmd-desc">면접 질문 생성</div>
+        </div>
+      </button>
+    </div>
+
+    <hr class="sidebar-divider">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">시스템</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'push')"
+              data-needs-project="false">
+        <span class="cmd-icon">📤</span>
+        <div class="cmd-info">
+          <div class="cmd-name">push</div>
+          <div class="cmd-desc">GitHub push</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'status')"
+              data-needs-project="false">
+        <span class="cmd-icon">⚙️</span>
+        <div class="cmd-info">
+          <div class="cmd-name">status</div>
+          <div class="cmd-desc">데몬 상태 확인</div>
+        </div>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main>
+    <div class="main-header">
+      <div>
+        <div class="main-title" id="main-title">daily — 오늘 일지 생성</div>
+        <div class="main-subtitle" id="main-cmd">$ bash devtrace.sh daily</div>
+      </div>
+      <div class="run-area">
+        <input type="text" class="project-input" id="project-input"
+               placeholder="프로젝트 이름" style="display:none"
+               list="project-list">
+        <datalist id="project-list">
+          {% for p in projects %}
+          <option value="{{ p }}">
+          {% endfor %}
+        </datalist>
+        <button class="run-btn" id="run-btn" onclick="runCommand()">
+          <div class="spinner"></div>
+          <span class="btn-text">▶ 실행</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="terminal-wrap">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title" id="terminal-title">대기 중</span>
+        <button class="clear-btn" onclick="clearTerminal()">clear</button>
+      </div>
+      <div id="terminal">
+        <div class="empty-state">
+          <div class="empty-icon">⚡</div>
+          <p>명령어를 선택하고 실행하세요</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-header">최근 일지</div>
+    <div class="journal-list" id="journal-list">
+      {% if journals %}
+        {% for j in journals %}
+        <div class="journal-item" onclick="loadJournal('{{ j.path }}', this)">
+          <div class="journal-dot"></div>
+          <div class="journal-date">{{ j.name }}</div>
+          <div class="journal-size">{{ (j.size / 1024) | round(1) }}KB</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="journal-preview-empty">일지 없음</div>
+      {% endif %}
+    </div>
+    <div id="journal-preview" class="journal-preview-empty">
+      일지를 선택하면 내용이 표시됩니다
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let currentCmd = 'daily';
+let currentApi = 'groq';
+let isRunning = false;
+
+function setApi(api) {
+  currentApi = api;
+  document.getElementById('btn-groq').classList.toggle('active', api === 'groq');
+  document.getElementById('btn-openai').classList.toggle('active', api === 'openai');
+  showToast(api === 'groq' ? 'Groq (llama-3.3-70b)' : 'OpenAI (gpt-4o-mini)', 'success');
+}
+
+const CMD_META = {
+  daily:     { title: 'daily — 오늘 일지 생성',       cmd: '$ bash devtrace.sh daily',          needsProject: false },
+  weekly:    { title: 'weekly — 주간 리포트',          cmd: '$ bash devtrace.sh weekly',         needsProject: false },
+  project:   { title: 'project — 프로젝트 분석',       cmd: '$ bash devtrace.sh project <이름>', needsProject: true  },
+  portfolio: { title: 'portfolio — GitHub README',    cmd: '$ bash devtrace.sh portfolio <이름>',needsProject: true  },
+  interview: { title: 'interview — 면접 질문 생성',    cmd: '$ bash devtrace.sh interview <이름>',needsProject: true  },
+  push:      { title: 'push — GitHub push',           cmd: '$ bash devtrace.sh push',           needsProject: false },
+  status:    { title: 'status — 데몬 상태',            cmd: '$ bash devtrace.sh status',         needsProject: false },
+};
+
+function selectCmd(el, cmd) {
+  document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentCmd = cmd;
+  const m = CMD_META[cmd];
+  document.getElementById('main-title').textContent = m.title;
+  document.getElementById('main-cmd').textContent = m.cmd;
+  const inp = document.getElementById('project-input');
+  inp.style.display = m.needsProject ? 'block' : 'none';
+}
+
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">⚡</div><p>명령어를 선택하고 실행하세요</p></div>';
+  document.getElementById('terminal-title').textContent = '대기 중';
+}
+
+function appendLine(text, cls) {
+  const t = document.getElementById('terminal');
+  // clear empty state on first output
+  if (t.querySelector('.empty-state')) t.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = cls || 'line-plain';
+  div.textContent = text;
+  t.appendChild(div);
+  t.scrollTop = t.scrollHeight;
+}
+
+function classifyLine(line) {
+  if (!line) return 'line-plain';
+  if (line.startsWith('✅') || line.startsWith('📖') || line.startsWith('📊')) return 'line-ok';
+  if (line.startsWith('❌') || line.startsWith('⚠️')) return 'line-err';
+  if (line.startsWith('📡') || line.startsWith('🔄') || line.startsWith('📝') ||
+      line.startsWith('🗓') || line.startsWith('📚') || line.startsWith('🏗') ||
+      line.startsWith('🎤') || line.startsWith('📤') || line.startsWith('🔍') ||
+      line.startsWith('[') || line.startsWith('⏳')) return 'line-info';
+  if (line.startsWith('$') || line.startsWith('#')) return 'line-cmd';
+  return 'line-plain';
+}
+
+async function runCommand() {
+  if (isRunning) return;
+  const projectName = document.getElementById('project-input').value.trim();
+  if (CMD_META[currentCmd].needsProject && !projectName) {
+    showToast('프로젝트 이름을 입력하세요', 'error');
+    document.getElementById('project-input').focus();
+    return;
+  }
+
+  isRunning = true;
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('running');
+  btn.disabled = true;
+
+  const term = document.getElementById('terminal');
+  term.innerHTML = '';
+  const now = new Date().toLocaleTimeString('ko-KR');
+  document.getElementById('terminal-title').textContent =
+    `${currentCmd} — ${now}`;
+
+  const cmdStr = CMD_META[currentCmd].cmd
+    .replace('<이름>', projectName)
+    .replace('$ ', '');
+  appendLine('$ ' + cmdStr + (currentApi !== 'groq' ? ' --api ' + currentApi : ''), 'line-cmd');
+  appendLine('', 'line-plain');
+
+  try {
+    const params = new URLSearchParams({
+      cmd: currentCmd,
+      project: projectName,
+      api: currentApi,
+    });
+    const res = await fetch('/run?' + params);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      chunk.split('\\n').forEach(line => {
+        appendLine(line, classifyLine(line));
+      });
+    }
+  } catch (e) {
+    appendLine('오류: ' + e.message, 'line-err');
+  } finally {
+    isRunning = false;
+    btn.classList.remove('running');
+    btn.disabled = false;
+    appendLine('', 'line-plain');
+    appendLine('─'.repeat(48), 'line-plain');
+    // refresh journal list
+    refreshJournals();
+  }
+}
+
+async function refreshJournals() {
+  try {
+    const res = await fetch('/journals');
+    const data = await res.json();
+    const list = document.getElementById('journal-list');
+    list.innerHTML = '';
+    data.forEach(j => {
+      const div = document.createElement('div');
+      div.className = 'journal-item';
+      div.onclick = () => loadJournal(j.path, div);
+      div.innerHTML = `
+        <div class="journal-dot"></div>
+        <div class="journal-date">${j.name}</div>
+        <div class="journal-size">${(j.size/1024).toFixed(1)}KB</div>
+      `;
+      list.appendChild(div);
+    });
+  } catch(e) {}
+}
+
+async function loadJournal(path, el) {
+  document.querySelectorAll('.journal-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  try {
+    const res = await fetch('/journal?path=' + encodeURIComponent(path));
+    const text = await res.text();
+    const preview = document.getElementById('journal-preview');
+    preview.className = 'journal-preview';
+    preview.textContent = text.slice(0, 2000) + (text.length > 2000 ? '\\n\\n...(이하 생략)' : '');
+  } catch(e) {
+    document.getElementById('journal-preview').textContent = '불러오기 실패';
+  }
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => { t.className = 'toast'; }, 2200);
+}
+
+// keyboard shortcut: Enter to run
+document.getElementById('project-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runCommand();
+});
+</script>
+</body>
+</html>"""
+
+
+@app.route("/")
+def index():
+    return render_template_string(
+        HTML,
+        journals=get_journals(),
+        projects=get_projects(),
+    )
+
+
+@app.route("/run")
+def run():
+    cmd = request.args.get("cmd", "daily")
+    project = request.args.get("project", "")
+    api = request.args.get("api", "groq")
+
+    allowed = {"daily", "weekly", "project", "portfolio", "interview", "push", "status"}
+    if cmd not in allowed:
+        return Response("허용되지 않는 명령어", status=400)
+
+    args = ["bash", DEVTRACE_SH, cmd]
+    if cmd in ("project", "portfolio", "interview") and project:
+        args.append(project)
+    if api in ("groq", "openai") and cmd in ("daily", "project", "portfolio", "interview"):
+        args += ["--api", api]
+
+    def generate():
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(DEVTRACE_DIR),
+            )
+            for line in iter(proc.stdout.readline, ""):
+                yield line
+            proc.wait()
+            if proc.returncode == 0:
+                yield "\n✅ 완료\n"
+            else:
+                yield f"\n⚠️  종료 코드: {proc.returncode}\n"
+        except Exception as e:
+            yield f"❌ 실행 오류: {e}\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/plain",
+        headers={"X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/journals")
+def journals():
+    return jsonify(get_journals())
+
+
+@app.route("/journal")
+def journal():
+    path = request.args.get("path", "")
+    p = Path(path)
+    if not p.exists() or not str(p).startswith(str(JOURNAL_DIR)):
+        return "파일 없음", 404
+    return p.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
+if __name__ == "__main__":
+    print("╔══════════════════════════════════╗")
+    print("║     DevTrace Web Dashboard       ║")
+    print("║   http://localhost:5000          ║")
+    print("╚══════════════════════════════════╝")
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+
+cat > ~/devtrace/app.py << 'PYEOF'
+ 
+import subprocess
+import os
+import glob
+from datetime import datetime
+from pathlib import Path
+from flask import Flask, render_template_string, request, jsonify, Response, stream_with_context
+ 
+app = Flask(__name__)
+ 
+HOME = Path.home()
+DEVTRACE_DIR = HOME / "devtrace"
+JOURNAL_DIR = DEVTRACE_DIR / "journal"
+PORTFOLIO_DIR = DEVTRACE_DIR / "portfolio"
+DEVTRACE_SH = str(DEVTRACE_DIR / "devtrace.sh")
+ 
+def get_journals(limit=10):
+    journals = []
+    pattern = str(JOURNAL_DIR / "20*.md")
+    files = sorted(glob.glob(pattern), reverse=True)[:limit]
+    for f in files:
+        p = Path(f)
+        journals.append({
+            "name": p.stem,
+            "path": str(p),
+            "size": p.stat().st_size,
+        })
+    return journals
+ 
+def get_projects():
+    project_dir_env = os.popen(
+        f"bash -c 'source {DEVTRACE_DIR}/config.env && echo $PROJECT_DIR'"
+    ).read().strip()
+    if not project_dir_env:
+        project_dir_env = str(HOME / "projects")
+    projects = []
+    try:
+        result = subprocess.run(
+            ["find", project_dir_env, "-maxdepth", "3", "-name", ".git", "-type", "d"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                projects.append(Path(line).parent.name)
+    except Exception:
+        pass
+    return projects
+ 
+HTML = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevTrace</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+ 
+  :root {
+    --bg:      #0d0d0d;
+    --surface: #141414;
+    --card:    #1a1a1a;
+    --border:  #2a2a2a;
+    --accent:  #e8441a;
+    --accent2: #f5a623;
+    --green:   #3ecf74;
+    --text:    #e8e8e8;
+    --muted:   #666;
+    --mono:    'JetBrains Mono', monospace;
+    --sans:    'Inter', sans-serif;
+  }
+ 
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+ 
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+ 
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+ 
+  .logo-text {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+ 
+  .logo-text span { color: var(--accent); }
+ 
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    letter-spacing: 0.05em;
+  }
+ 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+ 
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+ 
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+ 
+  .status-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+ 
+  /* ── API TOGGLE ── */
+  .api-toggle {
+    display: flex;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+ 
+  .api-toggle button {
+    padding: 6px 14px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+ 
+  .api-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+ 
+  /* ── LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 0;
+    flex: 1;
+    height: calc(100vh - 65px);
+    overflow: hidden;
+  }
+ 
+  /* ── SIDEBAR ── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    overflow-y: auto;
+    padding: 20px 0;
+  }
+ 
+  .sidebar-section {
+    margin-bottom: 8px;
+  }
+ 
+  .sidebar-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    padding: 0 20px 8px;
+    text-transform: uppercase;
+  }
+ 
+  .cmd-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 20px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    text-align: left;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+  }
+ 
+  .cmd-btn:hover { background: var(--card); }
+ 
+  .cmd-btn.active {
+    background: var(--card);
+    border-left-color: var(--accent);
+    color: #fff;
+  }
+ 
+  .cmd-icon {
+    font-size: 15px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+ 
+  .cmd-info { flex: 1; min-width: 0; }
+  .cmd-name { font-weight: 600; font-size: 13px; }
+  .cmd-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+ 
+  .sidebar-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 12px 20px;
+  }
+ 
+  /* ── MAIN ── */
+  main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+ 
+  .main-header {
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+ 
+  .main-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+ 
+  .main-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+ 
+  .run-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+ 
+  .project-input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 180px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+ 
+  .project-input:focus { border-color: var(--accent); }
+  .project-input::placeholder { color: var(--muted); }
+ 
+  .run-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 20px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+ 
+  .run-btn:hover { opacity: 0.88; }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+ 
+  .run-btn .spinner {
+    width: 13px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+ 
+  .run-btn.running .spinner { display: block; }
+  .run-btn.running .btn-text { display: none; }
+ 
+  @keyframes spin { to { transform: rotate(360deg); } }
+ 
+  /* ── TERMINAL ── */
+  .terminal-wrap {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin: 16px 28px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0a0a0a;
+  }
+ 
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    border-radius: 8px 8px 0 0;
+  }
+ 
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot-r { background: #ff5f56; }
+  .dot-y { background: #ffbd2e; }
+  .dot-g { background: #27c93f; }
+ 
+  .terminal-title {
+    margin-left: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+ 
+  .clear-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: var(--mono);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.1s;
+  }
+ 
+  .clear-btn:hover { color: var(--text); }
+ 
+  #terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+ 
+  #terminal::-webkit-scrollbar { width: 4px; }
+  #terminal::-webkit-scrollbar-track { background: transparent; }
+  #terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+ 
+  .line-cmd   { color: var(--accent2); }
+  .line-ok    { color: var(--green); }
+  .line-err   { color: #ff6b6b; }
+  .line-info  { color: #8eb8e8; }
+  .line-plain { color: #c8c8c8; }
+ 
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+ 
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-family: var(--mono);
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+ 
+  .journal-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+ 
+  .journal-list::-webkit-scrollbar { width: 3px; }
+  .journal-list::-webkit-scrollbar-thumb { background: var(--border); }
+ 
+  .journal-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 20px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+  }
+ 
+  .journal-item:hover { background: var(--card); }
+  .journal-item.active {
+    background: var(--card);
+    border-left-color: var(--accent2);
+  }
+ 
+  .journal-date {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+ 
+  .journal-size {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+ 
+  .journal-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent2);
+    flex-shrink: 0;
+  }
+ 
+  .journal-preview {
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: #aaa;
+    white-space: pre-wrap;
+  }
+ 
+  .journal-preview::-webkit-scrollbar { width: 3px; }
+  .journal-preview::-webkit-scrollbar-thumb { background: var(--border); }
+ 
+  .journal-preview-empty {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 11px;
+    padding: 16px 20px;
+    font-family: var(--mono);
+  }
+ 
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 10px;
+    color: var(--muted);
+  }
+ 
+  .empty-state .empty-icon { font-size: 32px; opacity: 0.3; }
+  .empty-state p { font-size: 12px; font-family: var(--mono); }
+ 
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-family: var(--mono);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    z-index: 999;
+    pointer-events: none;
+  }
+ 
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: #ff6b6b; color: #ff6b6b; }
+ 
+  /* ── SCROLLBAR ── */
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+ 
+<header>
+  <div class="logo">
+    <div class="logo-text"><span>Dev</span>Trace</div>
+    <div class="logo-sub">개발 과정 자동 기록 시스템</div>
+  </div>
+  <div class="header-right">
+    <div class="api-toggle">
+      <button id="btn-groq" class="active" onclick="setApi('groq')">Groq</button>
+      <button id="btn-openai" onclick="setApi('openai')">OpenAI</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="status-dot"></div>
+      <span class="status-label">v2.11</span>
+    </div>
+  </div>
+</header>
+ 
+<div class="layout">
+ 
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">일지</div>
+      <button class="cmd-btn active" onclick="selectCmd(this,'daily')"
+              data-needs-project="false">
+        <span class="cmd-icon">📅</span>
+        <div class="cmd-info">
+          <div class="cmd-name">daily</div>
+          <div class="cmd-desc">오늘 일지 생성</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'weekly')"
+              data-needs-project="false">
+        <span class="cmd-icon">📊</span>
+        <div class="cmd-info">
+          <div class="cmd-name">weekly</div>
+          <div class="cmd-desc">주간 리포트 생성</div>
+        </div>
+      </button>
+    </div>
+ 
+    <hr class="sidebar-divider">
+ 
+    <div class="sidebar-section">
+      <div class="sidebar-label">프로젝트</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'project')"
+              data-needs-project="true">
+        <span class="cmd-icon">🔍</span>
+        <div class="cmd-info">
+          <div class="cmd-name">project</div>
+          <div class="cmd-desc">프로젝트 단위 분석</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'portfolio')"
+              data-needs-project="true">
+        <span class="cmd-icon">🏗</span>
+        <div class="cmd-info">
+          <div class="cmd-name">portfolio</div>
+          <div class="cmd-desc">GitHub README 생성</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'interview')"
+              data-needs-project="true">
+        <span class="cmd-icon">🎤</span>
+        <div class="cmd-info">
+          <div class="cmd-name">interview</div>
+          <div class="cmd-desc">면접 질문 생성</div>
+        </div>
+      </button>
+    </div>
+ 
+    <hr class="sidebar-divider">
+ 
+    <div class="sidebar-section">
+      <div class="sidebar-label">시스템</div>
+      <button class="cmd-btn" onclick="selectCmd(this,'push')"
+              data-needs-project="false">
+        <span class="cmd-icon">📤</span>
+        <div class="cmd-info">
+          <div class="cmd-name">push</div>
+          <div class="cmd-desc">GitHub push</div>
+        </div>
+      </button>
+      <button class="cmd-btn" onclick="selectCmd(this,'status')"
+              data-needs-project="false">
+        <span class="cmd-icon">⚙️</span>
+        <div class="cmd-info">
+          <div class="cmd-name">status</div>
+          <div class="cmd-desc">데몬 상태 확인</div>
+        </div>
+      </button>
+    </div>
+  </nav>
+ 
+  <!-- MAIN -->
+  <main>
+    <div class="main-header">
+      <div>
+        <div class="main-title" id="main-title">daily — 오늘 일지 생성</div>
+        <div class="main-subtitle" id="main-cmd">$ bash devtrace.sh daily</div>
+      </div>
+      <div class="run-area">
+        <input type="text" class="project-input" id="project-input"
+               placeholder="프로젝트 이름" style="display:none"
+               list="project-list">
+        <datalist id="project-list">
+          {% for p in projects %}
+          <option value="{{ p }}">
+          {% endfor %}
+        </datalist>
+        <button class="run-btn" id="run-btn" onclick="runCommand()">
+          <div class="spinner"></div>
+          <span class="btn-text">▶ 실행</span>
+        </button>
+      </div>
+    </div>
+ 
+    <div class="terminal-wrap">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title" id="terminal-title">대기 중</span>
+        <button class="clear-btn" onclick="clearTerminal()">clear</button>
+      </div>
+      <div id="terminal">
+        <div class="empty-state">
+          <div class="empty-icon">⚡</div>
+          <p>명령어를 선택하고 실행하세요</p>
+        </div>
+      </div>
+    </div>
+  </main>
+ 
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="panel-header">최근 일지</div>
+    <div class="journal-list" id="journal-list">
+      {% if journals %}
+        {% for j in journals %}
+        <div class="journal-item" onclick="loadJournal('{{ j.path }}', this)">
+          <div class="journal-dot"></div>
+          <div class="journal-date">{{ j.name }}</div>
+          <div class="journal-size">{{ (j.size / 1024) | round(1) }}KB</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="journal-preview-empty">일지 없음</div>
+      {% endif %}
+    </div>
+    <div id="journal-preview" class="journal-preview-empty">
+      일지를 선택하면 내용이 표시됩니다
+    </div>
+  </div>
+ 
+</div>
+ 
+<div class="toast" id="toast"></div>
+ 
+<script>
+let currentCmd = 'daily';
+let currentApi = 'groq';
+let isRunning = false;
+ 
+function setApi(api) {
+  currentApi = api;
+  document.getElementById('btn-groq').classList.toggle('active', api === 'groq');
+  document.getElementById('btn-openai').classList.toggle('active', api === 'openai');
+  showToast(api === 'groq' ? 'Groq (llama-3.3-70b)' : 'OpenAI (gpt-4o-mini)', 'success');
+}
+ 
+const CMD_META = {
+  daily:     { title: 'daily — 오늘 일지 생성',       cmd: '$ bash devtrace.sh daily',          needsProject: false },
+  weekly:    { title: 'weekly — 주간 리포트',          cmd: '$ bash devtrace.sh weekly',         needsProject: false },
+  project:   { title: 'project — 프로젝트 분석',       cmd: '$ bash devtrace.sh project <이름>', needsProject: true  },
+  portfolio: { title: 'portfolio — GitHub README',    cmd: '$ bash devtrace.sh portfolio <이름>',needsProject: true  },
+  interview: { title: 'interview — 면접 질문 생성',    cmd: '$ bash devtrace.sh interview <이름>',needsProject: true  },
+  push:      { title: 'push — GitHub push',           cmd: '$ bash devtrace.sh push',           needsProject: false },
+  status:    { title: 'status — 데몬 상태',            cmd: '$ bash devtrace.sh status',         needsProject: false },
+};
+ 
+function selectCmd(el, cmd) {
+  document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  currentCmd = cmd;
+  const m = CMD_META[cmd];
+  document.getElementById('main-title').textContent = m.title;
+  document.getElementById('main-cmd').textContent = m.cmd;
+  const inp = document.getElementById('project-input');
+  inp.style.display = m.needsProject ? 'block' : 'none';
+}
+ 
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML =
+    '<div class="empty-state"><div class="empty-icon">⚡</div><p>명령어를 선택하고 실행하세요</p></div>';
+  document.getElementById('terminal-title').textContent = '대기 중';
+}
+ 
+function appendLine(text, cls) {
+  const t = document.getElementById('terminal');
+  // clear empty state on first output
+  if (t.querySelector('.empty-state')) t.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = cls || 'line-plain';
+  div.textContent = text;
+  t.appendChild(div);
+  t.scrollTop = t.scrollHeight;
+}
+ 
+function classifyLine(line) {
+  if (!line) return 'line-plain';
+  if (line.startsWith('✅') || line.startsWith('📖') || line.startsWith('📊')) return 'line-ok';
+  if (line.startsWith('❌') || line.startsWith('⚠️')) return 'line-err';
+  if (line.startsWith('📡') || line.startsWith('🔄') || line.startsWith('📝') ||
+      line.startsWith('🗓') || line.startsWith('📚') || line.startsWith('🏗') ||
+      line.startsWith('🎤') || line.startsWith('📤') || line.startsWith('🔍') ||
+      line.startsWith('[') || line.startsWith('⏳')) return 'line-info';
+  if (line.startsWith('$') || line.startsWith('#')) return 'line-cmd';
+  return 'line-plain';
+}
+ 
+async function runCommand() {
+  if (isRunning) return;
+  const projectName = document.getElementById('project-input').value.trim();
+  if (CMD_META[currentCmd].needsProject && !projectName) {
+    showToast('프로젝트 이름을 입력하세요', 'error');
+    document.getElementById('project-input').focus();
+    return;
+  }
+ 
+  isRunning = true;
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('running');
+  btn.disabled = true;
+ 
+  const term = document.getElementById('terminal');
+  term.innerHTML = '';
+  const now = new Date().toLocaleTimeString('ko-KR');
+  document.getElementById('terminal-title').textContent =
+    `${currentCmd} — ${now}`;
+ 
+  const cmdStr = CMD_META[currentCmd].cmd
+    .replace('<이름>', projectName)
+    .replace('$ ', '');
+  appendLine('$ ' + cmdStr + (currentApi !== 'groq' ? ' --api ' + currentApi : ''), 'line-cmd');
+  appendLine('', 'line-plain');
+ 
+  try {
+    const params = new URLSearchParams({
+      cmd: currentCmd,
+      project: projectName,
+      api: currentApi,
+    });
+    const res = await fetch('/run?' + params);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+ 
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      chunk.split('\\n').forEach(line => {
+        appendLine(line, classifyLine(line));
+      });
+    }
+  } catch (e) {
+    appendLine('오류: ' + e.message, 'line-err');
+  } finally {
+    isRunning = false;
+    btn.classList.remove('running');
+    btn.disabled = false;
+    appendLine('', 'line-plain');
+    appendLine('─'.repeat(48), 'line-plain');
+    // refresh journal list
+    refreshJournals();
+  }
+}
+ 
+async function refreshJournals() {
+  try {
+    const res = await fetch('/journals');
+    const data = await res.json();
+    const list = document.getElementById('journal-list');
+    list.innerHTML = '';
+    data.forEach(j => {
+      const div = document.createElement('div');
+      div.className = 'journal-item';
+      div.onclick = () => loadJournal(j.path, div);
+      div.innerHTML = `
+        <div class="journal-dot"></div>
+        <div class="journal-date">${j.name}</div>
+        <div class="journal-size">${(j.size/1024).toFixed(1)}KB</div>
+      `;
+      list.appendChild(div);
+    });
+  } catch(e) {}
+}
+ 
+async function loadJournal(path, el) {
+  document.querySelectorAll('.journal-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+  try {
+    const res = await fetch('/journal?path=' + encodeURIComponent(path));
+    const text = await res.text();
+    const preview = document.getElementById('journal-preview');
+    preview.className = 'journal-preview';
+    preview.textContent = text.slice(0, 2000) + (text.length > 2000 ? '\\n\\n...(이하 생략)' : '');
+  } catch(e) {
+    document.getElementById('journal-preview').textContent = '불러오기 실패';
+  }
+}
+ 
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => { t.className = 'toast'; }, 2200);
+}
+ 
+// keyboard shortcut: Enter to run
+document.getElementById('project-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runCommand();
+});
+</script>
+</body>
+</html>"""
+ 
+ 
+@app.route("/")
+def index():
+    return render_template_string(
+        HTML,
+        journals=get_journals(),
+        projects=get_projects(),
+    )
+ 
+ 
+@app.route("/run")
+def run():
+    cmd = request.args.get("cmd", "daily")
+    project = request.args.get("project", "")
+    api = request.args.get("api", "groq")
+ 
+    allowed = {"daily", "weekly", "project", "portfolio", "interview", "push", "status"}
+    if cmd not in allowed:
+        return Response("허용되지 않는 명령어", status=400)
+ 
+    args = ["bash", DEVTRACE_SH, cmd]
+    if cmd in ("project", "portfolio", "interview") and project:
+        args.append(project)
+    if api in ("groq", "openai") and cmd in ("daily", "project", "portfolio", "interview"):
+        args += ["--api", api]
+ 
+    def generate():
+        try:
+            proc = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(DEVTRACE_DIR),
+            )
+            for line in iter(proc.stdout.readline, ""):
+                yield line
+            proc.wait()
+            if proc.returncode == 0:
+                yield "\n✅ 완료\n"
+            else:
+                yield f"\n⚠️  종료 코드: {proc.returncode}\n"
+        except Exception as e:
+            yield f"❌ 실행 오류: {e}\n"
+ 
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/plain",
+        headers={"X-Accel-Buffering": "no"},
+    )
+ 
+ 
+@app.route("/journals")
+def journals():
+    return jsonify(get_journals())
+ 
+ 
+@app.route("/journal")
+def journal():
+    path = request.args.get("path", "")
+    p = Path(path)
+    if not p.exists() or not str(p).startswith(str(JOURNAL_DIR)):
+        return "파일 없음", 404
+    return p.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
+ 
+ 
+if __name__ == "__main__":
+    print("╔══════════════════════════════════╗")
+    print("║     DevTrace Web Dashboard       ║")
+    print("║   http://localhost:5000          ║")
+    print("╚══════════════════════════════════╝")
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+
+clear
+ls
+gedit ~/devtrace/devtrace.sh
+la
+ls
+ls -la ~/devtrace/app.py
+grep -n "web" ~/devtrace/devtrace.sh
+python3 -c "import flask; print('Flask OK:', flask.__version__)"
+pip3 install flask --break-system-packages
+pip3 install flask
+bash ~/devtrace/devtrace.sh web
+gedit devtrace.sh
+bash ~/devtrace/devtrace.sh web
+gedit devtrace.sh
