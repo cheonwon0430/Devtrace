@@ -39,32 +39,58 @@ PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/port
 PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    body = {
-        "model": "llama-3.3-70b-versatile",
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "messages": [
-            {
-                "role": "system",
-                "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요."
-            },
-            {"role": "user", "content": prompt}
-        ]
-    }
-    response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers=headers,
-        json=body,
-        timeout=30
-    )
-    if response.status_code != 200:
-        raise Exception(f"API 오류: {response.status_code}")
-    return response.json()["choices"][0]["message"]["content"]
+def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7,
+                  fallback_fn=None) -> str:
+    def _do_request():
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+        body = {
+            "model": "llama-3.3-70b-versatile",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요."
+                },
+                {"role": "user", "content": prompt}
+            ]
+        }
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=body,
+            timeout=30
+        )
+        if response.status_code != 200:
+            raise Exception(f"API 오류: {response.status_code} - {response.text}")
+        return response.json()["choices"][0]["message"]["content"]
+
+    try:
+        return _do_request()
+    except Exception as e:
+        import time, re as _re
+        msg = str(e)
+        print(f"⚠️  API 호출 실패: {msg[:120]}")
+        m = _re.search(r'try again in ([\d.]+)(s|m)', msg)
+        if m:
+            value, unit = float(m.group(1)), m.group(2)
+            wait_sec = value if unit == 's' else value * 60
+            if wait_sec <= 10:
+                print(f"⏳ {wait_sec:.1f}초 후 재시도...")
+                time.sleep(wait_sec)
+                try:
+                    return _do_request()
+                except Exception as e2:
+                    print(f"⚠️  재시도 실패: {str(e2)[:80]}")
+            else:
+                print(f"⏳ 대기 시간 {wait_sec:.0f}초 — 재시도 생략, 폴백으로 전환")
+        if fallback_fn:
+            print("📝 폴백으로 전환합니다.")
+            return fallback_fn()
+        raise
 
 
 def load_week_journals(week_offset: int = 0) -> dict:
@@ -216,7 +242,8 @@ def generate_portfolio(project_name: str) -> str:
 ## 💡 배운 것들
 """
 
-    return call_groq_api(prompt, temperature=0.3)
+    return call_groq_api(prompt, temperature=0.3,
+                     fallback_fn=lambda: f"# {project_name}\n\n⚠️ AI 호출 실패 — 잠시 후 다시 실행하세요.")
 
 
 def generate_interview_questions(project_name: str) -> str:
@@ -284,10 +311,8 @@ def generate_interview_questions(project_name: str) -> str:
 **A5.**
 """
 
-    try:
-        return call_groq_api(prompt, max_tokens=3000, temperature=0.3)
-    except Exception as e:
-        return f"⚠️ AI 호출 실패: {e}\n\n잠시 후 다시 시도하거나 재실행하세요."
+    return call_groq_api(prompt, max_tokens=3000, temperature=0.3,
+                     fallback_fn=lambda: f"# {project_name} 면접 예상 질문\n\n⚠️ AI 호출 실패 — 잠시 후 다시 실행하세요.")
 
 
 def draw_weekly_graph(journals: dict):

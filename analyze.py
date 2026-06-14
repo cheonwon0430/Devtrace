@@ -3,6 +3,8 @@
 
 import os
 import sys
+import time
+import re as _re
 import requests
 from datetime import datetime
 from pathlib import Path
@@ -300,37 +302,60 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 {instruction}"""
 
 
-def call_groq_api(prompt: str) -> str:
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    body = {
-        "model": "llama-3.3-70b-versatile",
-        "max_tokens": 3500,
-        "temperature": 0.3,
-        "messages": [
-            {
-                "role": "system",
-                "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요. 영어 문장, 일본어, 중국어는 절대 사용하지 마세요."
-            },
-            {"role": "user", "content": prompt}
-        ]
-    }
-    response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers=headers,
-        json=body,
-        timeout=30
-    )
-    if response.status_code != 200:
-        raise Exception(f"API 오류: {response.status_code} - {response.text}")
+def call_groq_api(prompt: str, fallback_fn=None, temperature: float = 0.3) -> str:
+    def _do_request():
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+        body = {
+            "model": "llama-3.3-70b-versatile",
+            "max_tokens": 3500,
+            "temperature": temperature,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요. 영어 문장, 일본어, 중국어는 절대 사용하지 마세요."
+                },
+                {"role": "user", "content": prompt}
+            ]
+        }
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=body,
+            timeout=30
+        )
+        if response.status_code != 200:
+            raise Exception(f"API 오류: {response.status_code} - {response.text}")
+        data = response.json()
+        choice = data["choices"][0]
+        if choice.get("finish_reason") == "length":
+            print("⚠️  응답이 토큰 한도로 잘렸을 수 있습니다 (finish_reason=length)")
+        return choice["message"]["content"]
 
-    data = response.json()
-    choice = data["choices"][0]
-    if choice.get("finish_reason") == "length":
-        print("⚠️  응답이 토큰 한도로 잘렸을 수 있습니다 (finish_reason=length)")
-    return choice["message"]["content"]
+    try:
+        return _do_request()
+    except Exception as e:
+        msg = str(e)
+        print(f"⚠️  API 호출 실패: {msg[:120]}")
+        m = _re.search(r'try again in ([\d.]+)(s|m)', msg)
+        if m:
+            value, unit = float(m.group(1)), m.group(2)
+            wait_sec = value if unit == 's' else value * 60
+            if wait_sec <= 10:
+                print(f"⏳ {wait_sec:.1f}초 후 재시도...")
+                time.sleep(wait_sec)
+                try:
+                    return _do_request()
+                except Exception as e2:
+                    print(f"⚠️  재시도 실패: {str(e2)[:80]}")
+            else:
+                print(f"⏳ 대기 시간 {wait_sec:.0f}초 — 재시도 생략, 폴백으로 전환")
+        if fallback_fn:
+            print("📝 폴백 템플릿으로 저장합니다.")
+            return fallback_fn()
+        raise
 
 
 def save_journal(filename: str, content: str) -> Path:
@@ -413,7 +438,10 @@ def main():
     else:
         prompt = build_prompt(mode, logs, label)
         print("📡 Groq API 호출 중...")
-        journal_content = call_groq_api(prompt)
+        journal_content = call_groq_api(
+            prompt,
+            fallback_fn=lambda: generate_empty_template(mode, label, logs)
+        )
 
     save_journal(filename, journal_content)
 

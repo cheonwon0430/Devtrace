@@ -1,27 +1,3 @@
-**A2.** `FileNotFoundError`와 `ValueError`를 처리하기 위해, 파일을 읽어올 때 파일이 존재하는지 확인하고, 파일의 내용을 처리할 때 값이 유효한지 확인하는 코드를 추가하였습니다. 또한, 오류가 발생할 경우 적절한 오류 메시지를 출력하여 사용자가 오류를 쉽게 파악할 수 있도록 하였습니다.
-ERROR_FILE="$OUT_DIR/errors.txt"
-        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -50 > "$ERROR_FILE"
-        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
-    journalctl -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
-grep -i "error\|not found\|permission denied\|failed\|traceback\|exception" \
-    "$OUT_DIR/history.txt" | grep -iv "$SYSTEM_FILTER" >> "$ERROR_FILE" 2>/dev/null
-PATTERN_FILE="$OUT_DIR/error_patterns.txt"
-ALL_ERRORS_FILE="$LOG_DIR/all_errors_combined.txt"
-find "$LOG_DIR" -name "errors.txt" ! -path "$OUT_DIR/*" 2>/dev/null \
-    | xargs cat 2>/dev/null > "$ALL_ERRORS_FILE"
-if [ -s "$ALL_ERRORS_FILE" ]; then
-    grep -i "error\|failed\|not found" "$ERROR_FILE" 2>/dev/null \
-        keyword=$(echo "$err_line" | grep -oiE "[A-Za-z]+Error|[A-Za-z]+Exception|not found|permission denied" | head -1)
-            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null)
-        content = path.read_text(encoding="utf-8", errors="ignore").strip()
-        "errors":         read_file(log_subdir / "errors.txt"),
-        "error_patterns": read_file(log_subdir / "error_patterns.txt"),
-{logs['errors'][:400]}
-{logs['error_patterns'][:300]}
-        raise Exception(f"API 오류: {response.status_code} - {response.text}")
-except ImportError:
-        raise Exception(f"API 오류: {response.status_code}")
-    except Exception as e:
 -- No entries --
 -- Boot 78c0c742c854456a824fd4c9293a4a7b --
         raise FileNotFoundError(f"파일을 찾을 수 없습니다: {filepath}")
@@ -183,6 +159,24 @@ git commit -m "401 에러 시 KeyError 안전처리 동작 확인"
 -- Boot 231a4efbc4c74adba4b3252c6cc35976 --
 -- Boot 43c53b96047a471eb79a01a881fa5db0 --
 -- Boot e1d1dfd739fc4aeeb9a18646adfd97fd --
+-- Boot d79ae0d16e7b42e386beee4b2730f18e --
+-- Boot d91b09596c42436f924cdc4b82eefe1f --
+-- Boot 85ab0d86b7a14c73a0a4a25a51e381e2 --
+-- Boot 1f073ca9cdbd4773838df92b63953519 --
+-- Boot 9d997a7e38354f818b03450aa7d1328d --
+-- Boot f771865db6a7414db985afcb7b6f8552 --
+-- Boot 4efc6b5853d34cf8b447ba0adf853a87 --
+-- Boot 231a4efbc4c74adba4b3252c6cc35976 --
+-- Boot 43c53b96047a471eb79a01a881fa5db0 --
+-- Boot e1d1dfd739fc4aeeb9a18646adfd97fd --
+-- Boot 529e74a2e7c74449afe00e72d67d6eb5 --
+-- Boot 54c76457f56c457b973f2f52248bc5cb --
+-- Boot ef29987e594e4c89ae494855d85662eb --
+-- Boot efb70240da7a4fc4ac2c3c88e0bca26d --
+-- Boot 6cba12edceaa49c3b7aa7c95841b4b6a --
+-- Boot 78c0c742c854456a824fd4c9293a4a7b --
+-- Boot 62de19b08e7e4918922a59a6a47bfa85 --
+except ImportError:
 -- Boot 43c53b96047a471eb79a01a881fa5db0 --
 -- Boot e1d1dfd739fc4aeeb9a18646adfd97fd --
 -- Boot d79ae0d16e7b42e386beee4b2730f18e --

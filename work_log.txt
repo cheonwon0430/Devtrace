@@ -6,3 +6,10 @@
 - cron.log 없음 → cron 자동 실행은 한 번도 안 됨 (VM 꺼져있어서)
 - daily 명령 폴백 메커니즘 정상 동작 확인
 - 다음: AI 실제 호출 검증 (가짜 활동으로 테스트)
+
+[2026-06-14]
+- v2.6 코드 복구 완료 (interview, temperature, diff_content 등)
+- push 명령어 분리 (devtrace.sh push)
+- collect.sh project 모드: strings로 바이너리 bash_history 대응, gnome/apt 필터
+- ai-summarizer project/portfolio/interview 정상 동작 확인
+- #34 다국어 검증 통과
