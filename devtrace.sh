@@ -34,11 +34,66 @@ case "${1:-daily}" in
             else
                 echo "⏭  편집 생략"
             fi
+
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📚 오늘 개발에 참고한 자료가 있나요? [y/N]"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            read -r REF_CHOICE
+            REF_CHOICE="${REF_CHOICE:-N}"
+            if [[ "$REF_CHOICE" =~ ^[Yy]$ ]]; then
+                REF_DIR="$HOME/devtrace/references/$TODAY"
+                mkdir -p "$REF_DIR"
+                # 섹션 헤더 먼저 추가
+                if ! grep -q "## 📚 참고 자료" "$JOURNAL_FILE"; then
+                    echo "" >> "$JOURNAL_FILE"
+                    echo "## 📚 참고 자료" >> "$JOURNAL_FILE"
+                fi
+
+                # 파일 선택 (여러 파일 한 번에)
+                echo "   📂 파일 선택창을 열겠습니다. Ctrl+클릭으로 여러 파일 선택 가능합니다."
+                REF_PATHS=$(zenity --file-selection \
+                    --title="참고 자료 파일 선택 (Ctrl+클릭으로 다중 선택)" \
+                    --filename="$HOME/" \
+                    --multiple \
+                    --separator=$'\n' \
+                    2>/dev/null)
+                if [ -n "$REF_PATHS" ]; then
+                    while IFS= read -r REF_PATH; do
+                        [ -z "$REF_PATH" ] && continue
+                        if [ -f "$REF_PATH" ]; then
+                            cp "$REF_PATH" "$REF_DIR/"
+                            FNAME=$(basename "$REF_PATH")
+                            echo "   ✅ 파일 저장됨: $FNAME"
+                            echo "- 📄 $FNAME" >> "$JOURNAL_FILE"
+                        fi
+                    done <<< "$REF_PATHS"
+                else
+                    echo "   ⏭  파일 선택 생략"
+                fi
+
+                # URL 입력
+                echo "   🌐 참고한 사이트 주소를 입력하세요."
+                while true; do
+                    REF_URL=$(zenity --entry \
+                        --title="참고 사이트 URL 입력" \
+                        --text="URL을 입력하세요 (취소하면 종료):" \
+                        --entry-text="https://" \
+                        2>/dev/null)
+                    [ -z "$REF_URL" ] && break
+                    echo "   ✅ URL 저장됨: $REF_URL"
+                    echo "- 🌐 $REF_URL" >> "$JOURNAL_FILE"
+                done
+                echo "✅ 참고 자료 저장 완료: $REF_DIR"
+            else
+                echo "⏭  참고 자료 생략"
+            fi
         fi
 
         echo ""
         echo "📖 일지 확인: $JOURNAL_FILE"
         ;;
+
 
     "full")
         echo "📚 전체 히스토리 요약 시작"
