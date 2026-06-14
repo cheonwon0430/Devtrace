@@ -148,11 +148,18 @@ case "${1:-daily}" in
 
     "portfolio")
         if [ -z "$2" ]; then
-            echo "❌ 사용법: devtrace.sh portfolio 프로젝트이름"
+            echo "❌ 사용법: devtrace.sh portfolio 프로젝트이름 [--template 템플릿이름]"
+            echo ""
+            echo "   사용 가능한 템플릿:"
+            ls ~/devtrace/templates/ 2>/dev/null | sed 's/.md//' | sed 's/^/   - /'
             exit 1
         fi
-        echo "🏗  포트폴리오 생성: $2"
-        python3 ~/devtrace/report.py portfolio "$2"
+        TEMPLATE="default"
+        if [ "$3" = "--template" ] && [ -n "$4" ]; then
+            TEMPLATE="$4"
+        fi
+        echo "🏗  포트폴리오 생성: $2 (템플릿: $TEMPLATE)"
+        python3 ~/devtrace/report.py portfolio "$2" "$TEMPLATE"
         echo ""
         echo "📖 결과 확인: ~/devtrace/portfolio/${2}_README.md"
         ;;

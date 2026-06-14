@@ -154,10 +154,21 @@ def generate_weekly_report(journals: dict) -> str:
     return report
 
 
-def generate_portfolio(project_name: str) -> str:
+def generate_portfolio(project_name: str, template: str = "default") -> str:
     project_journals = []
     journal_dates = []
 
+    # 템플릿 로드
+    template_content = ""
+    if template != "default":
+        template_path = Path.home() / "devtrace" / "templates" / f"{template}.md"
+        if template_path.exists():
+            template_content = template_path.read_text(encoding="utf-8")
+            print(f"📄 템플릿 적용: {template}.md")
+        else:
+            print(f"⚠️  템플릿을 찾을 수 없습니다: {template}.md")
+            print(f"   기본 방식으로 생성합니다.")
+            
     for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
         project_journals.append(md_file.read_text(encoding="utf-8"))
 
@@ -204,25 +215,19 @@ def generate_portfolio(project_name: str) -> str:
     if len(all_content) > 8000:
         all_content = all_content[:8000] + "\n...(이하 생략)"
 
-    prompt = f"""당신은 개발자의 개발 일지를 읽고 GitHub 포트폴리오 README를 작성하는 전문가입니다.
+    # 템플릿 지시문 구성
+    if template_content:
+        template_instruction = f"""
+[템플릿 규칙]
+아래 템플릿의 구조와 섹션을 반드시 유지하면서 내용을 채워줄 것.
+템플릿에 없는 섹션은 추가하지 말 것.
+템플릿의 섹션 순서를 바꾸지 말 것.
 
-아래는 "{project_name}" 프로젝트 관련 개발 일지 모음입니다.
-
-{all_content}
-
-[필수 규칙 - 언어]
-1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
-   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した), 베트남어 발음기호 알파벳.
-   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
-   점검 과정이나 메타 설명은 출력에 포함하지 말 것.
-
-[중요 - 개발 통계 작성 규칙]
-아래 통계값을 절대 추측하거나 바꾸지 말고 그대로 사용할 것:
-- 개발 기간: {period_str}
-- 총 커밋 수: {total_commits}개
-- 총 수정 파일: {total_files}개
-- 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
-
+[템플릿]
+{template_content}
+"""
+    else:
+        template_instruction = f"""
 # {project_name}
 
 ## 📌 프로젝트 소개
@@ -240,6 +245,28 @@ def generate_portfolio(project_name: str) -> str:
 - 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
 
 ## 💡 배운 것들
+"""
+
+    prompt = f"""당신은 개발자의 개발 일지를 읽고 GitHub 포트폴리오 README를 작성하는 전문가입니다.
+    
+아래는 "{project_name}" 프로젝트 관련 개발 일지 모음입니다.
+
+{all_content}
+
+[필수 규칙 - 언어]
+1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
+   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した), 베트남어 발음기호 알파벳.
+   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
+   점검 과정이나 메타 설명은 출력에 포함하지 말 것.
+
+[중요 - 개발 통계 작성 규칙]
+아래 통계값을 절대 추측하거나 바꾸지 말고 그대로 사용할 것:
+- 개발 기간: {period_str}
+- 총 커밋 수: {total_commits}개
+- 총 수정 파일: {total_files}개
+- 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
+
+{template_instruction}
 """
 
     return call_groq_api(prompt, temperature=0.3,
@@ -365,13 +392,9 @@ def main():
 
     elif mode == "portfolio":
         project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
+        template = sys.argv[3] if len(sys.argv) > 3 else "default"
         print(f"🏗  포트폴리오 생성 중: {project_name}")
-        readme = generate_portfolio(project_name)
-        readme_path = PORTFOLIO_DIR / f"{project_name}_README.md"
-        readme_path.write_text(readme, encoding="utf-8")
-        print(f"✅ 포트폴리오 저장: {readme_path}")
-        print("\n미리보기:")
-        print(readme[:600])
+        readme = generate_portfolio(project_name, template)
 
     elif mode == "interview":
         project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
