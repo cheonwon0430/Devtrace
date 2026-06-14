@@ -17,8 +17,27 @@ case "${1:-daily}" in
         echo "🗓  오늘($TODAY) 일지 생성 시작"
         bash ~/devtrace/collect.sh daily
         python3 ~/devtrace/analyze.py
+
+        JOURNAL_FILE="$HOME/devtrace/journal/$TODAY.md"
+
+        if [ -f "$JOURNAL_FILE" ] && [ -t 1 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✏️  [Human-in-the-Loop] AI가 일지를 생성했습니다."
+            echo "   직접 검토하고 수정하시겠습니까? [Y/n]"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            read -r EDIT_CHOICE
+            EDIT_CHOICE="${EDIT_CHOICE:-Y}"
+            if [[ "$EDIT_CHOICE" =~ ^[Yy]$ ]]; then
+                ${EDITOR:-nano} "$JOURNAL_FILE"
+                echo "✅ 일지 저장 완료"
+            else
+                echo "⏭  편집 생략"
+            fi
+        fi
+
         echo ""
-        echo "📖 일지 확인: ~/devtrace/journal/$TODAY.md"
+        echo "📖 일지 확인: $JOURNAL_FILE"
         ;;
 
     "full")
