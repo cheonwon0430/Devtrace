@@ -62,7 +62,11 @@ echo "[1/5] 터미널 히스토리 수집 중..."
 history -a
 
 if [ "$MODE" = "full" ] || [ "$MODE" = "project" ]; then
-    cat ~/.bash_history > "$OUT_DIR/history.txt"
+    strings ~/.bash_history \
+    | grep -iv "gnome\|apt install\|apt update\|VBoxClient\|killall\|gsk_" \
+    | awk '!seen[$0]++' \
+    | tail -300 \
+    > "$OUT_DIR/history.txt"
 elif [ "$MODE" = "range" ]; then
     FROM_TS=$(date -d "$DATE_FROM 00:00:00" +%s 2>/dev/null)
     TO_TS=$(date -d "$DATE_TO 23:59:59" +%s 2>/dev/null)

@@ -1,0 +1,103 @@
+
+## ai-summarizer 최근 커밋 변경 내용
+diff --git a/output/index.html b/output/index.html
+new file mode 100644
+index 0000000..aaae55b
+--- /dev/null
++++ b/output/index.html
+@@ -0,0 +1,32 @@
++<!DOCTYPE html>
++<html lang="ko">
++<head>
++    <meta charset="UTF-8">
++    <title>AI 요약 결과 뷰어</title>
++    <link rel="stylesheet" href="viewer.css">
++</head>
++<body>
++    <div class="container">
++        <h1>📄 AI 문서 요약 결과</h1>
++        <div id="result" class="card">
++            <p class="loading">불러오는 중...</p>
++        </div>
++    </div>
++
++    <script>
++        fetch('summary.json')
++            .then(res => res.json())
++            .then(data => {
++                document.getElementById('result').innerHTML = `
++                    <h2>${data.filename}</h2>
++                    <p class="meta">생성 시각: ${data.generated_at}</p>
++                    <div class="summary">${data.summary}</div>
++                `;
++            })
++            .catch(err => {
++                document.getElementById('result').innerHTML =
++                    '<p class="error">결과를 불러올 수 없습니다. summary.json이 없습니다.</p>';
++            });
++    </script>
++</body>
++</html>
+diff --git a/output/summary.json b/output/summary.json
+new file mode 100644
+index 0000000..7a8ce52
+--- /dev/null
++++ b/output/summary.json
+@@ -0,0 +1,5 @@
++{
++  "filename": "sample.txt",
++  "summary": "[요약] 총 34자",
++  "generated_at": "2026-06-13 11:20:14"
++}
+\ No newline at end of file
+diff --git a/output/viewer.css b/output/viewer.css
+new file mode 100644
+index 0000000..72a6fcd
+--- /dev/null
++++ b/output/viewer.css
+@@ -0,0 +1,40 @@
++body {
++    font-family: 'Noto Sans KR', sans-serif;
++    background: #f4f4f4;
++    margin: 0;
++    padding: 40px;
++}
++
++.container {
++    max-width: 600px;
++    margin: 0 auto;
++}
++
++h1 {
++    color: #333;
++}
++
++.card {
++    background: white;
++    border-radius: 8px;
++    padding: 20px;
++    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
++}
++
++.meta {
++    color: #888;
++    font-size: 0.9em;
++}
++
++.summary {
++    margin-top: 15px;
++    line-height: 1.6;
++}
++
++.loading, .error {
++    color: #999;
++}
++
++.error {
++    color: #d32f2f;
++}
+diff --git a/run.sh b/run.sh
+new file mode 100755
+index 0000000..eae4aae
+--- /dev/null
+
