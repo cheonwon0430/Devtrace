@@ -173,3 +173,1232 @@ git show HEAD~1:config.env 2>/dev/null || echo "없음"
 git show HEAD~2:config.env 2>/dev/null || echo "없음"
 cp ~/devtrace/devtrace.sh ~/devtrace/devtrace.sh.bak
 gedit ~/devtrace/devtrace.sh
+bash ~/devtrace/devtrace.sh daily 2>&1 | tail -10
+devtrace-export
+devtrace_export
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer 2>&1 | tail -5
+bash ~/devtrace/devtrace.sh interview ai-summarizer 2>&1 | tail -5
+bash ~/devtrace/devtrace.sh portfolio ai-summarizer 2>&1 | tail -5
+bash ~/devtrace/devtrace.sh interview ai-summarizer 2>&1 | tail -5
+grep -E "満足|好的|です|また|ます"   ~/devtrace/portfolio/ai-summarizer_README.md   ~/devtrace/portfolio/ai-summarizer_interview.md
+ls ~/devtrace/journal/
+grep -l "ai-summarizer\|ai_summarizer\|summarizer" ~/devtrace/journal/*.md 2>/dev/null
+grep -i "summarizer\|ai.summarizer" ~/devtrace/journal/2026-06-13.md | head -5
+bash ~/devtrace/devtrace.sh project ai-summarizer
+cat ~/devtrace/journal/project_ai-summarizer.md
+file ~/devtrace/logs/project_ai-summarizer/history.txt
+strings ~/devtrace/logs/project_ai-summarizer/history.txt | head -30
+strings ~/devtrace/logs/project_ai-summarizer/history.txt | grep -n "형식\|개발 일지\|작성한 파일"
+bash ~/devtrace/devtrace.sh interview ai-summarizer
+grep -n "interview" ~/devtrace/devtrace.sh
+grep -n "interview\|generate_interview" ~/devtrace/report.py
+grep -n "interview" ~/devtrace/devtrace.sh
+grep -n "interview\|generate_interview" ~/devtrace/report.py
+ls -la ~/devtrace/report.py ~/devtrace/devtrace.sh
+git -C ~/devtrace log --oneline -10
+grep -n "interview" ~/devtrace/devtrace.sh
+grep -n "temperature\|call_groq_api" ~/devtrace/analyze.py
+grep -n "temperature\|call_groq_api" ~/devtrace/analyze.py
+grep -n "interview\|generate_interview\|temperature\|regex\|re.search" ~/devtrace/report.py
+grep -n "interview" ~/devtrace/devtrace.sh
+git -C ~/devtrace log --oneline
+git -C ~/devtrace show e4194e7 --stat
+cd ~/projects/ai-summarizer
+git log --oneline
+ls ~/projects/ai-summarizer/
+cd ~/projects/ai-summarizer
+ls -la
+cat summarizer.py | wc -l
+cat output/index.html | wc -l
+cat viewer.css | wc -l
+cat run.sh | wc -l
+ls -la ~/devtrace/
+git -C ~/devtrace log --oneline -5
+git -C ~/devtrace status
+git -C ~/devtrace diff e4194e7 HEAD -- analyze.py | head -30
+git -C ~/devtrace diff e4194e7 HEAD -- collect.sh | head -20
+git -C ~/devtrace diff e4194e7 HEAD -- report.py | head -20
+cp ~/devtrace/devtrace.sh ~/devtrace/devtrace.sh.bak
+cp ~/devtrace/report.py ~/devtrace/report.py.bak
+cp ~/devtrace/analyze.py ~/devtrace/analyze.py.bak
+cp ~/devtrace/collect.sh ~/devtrace/collect.sh.bak
+cat > ~/devtrace/devtrace.sh << 'EOF'
+
+source ~/devtrace/config.env
+
+TODAY=$(date +%Y-%m-%d)
+
+echo "╔══════════════════════════════════╗"
+echo "║         DevTrace v2.0            ║"
+echo "║   개발 과정 자동 기록 시스템     ║"
+echo "╚══════════════════════════════════╝"
+echo ""
+
+case "${1:-daily}" in
+
+    "daily")
+        echo "🗓  오늘($TODAY) 일지 생성 시작"
+        bash ~/devtrace/collect.sh daily
+        python3 ~/devtrace/analyze.py
+        echo ""
+        echo "📖 일지 확인: ~/devtrace/journal/$TODAY.md"
+        echo ""
+        echo "📤 GitHub push 중..."
+        cd ~/devtrace
+        git add journal/ portfolio/ logs/ 2>/dev/null
+        git commit -m "devtrace: $TODAY daily 일지" 2>/dev/null && \
+            git push origin master 2>/dev/null && \
+            echo "✅ GitHub push 완료" || \
+            echo "⚠️  GitHub push 실패 (일지는 로컬에 저장됨)"
+        ;;
+
+    "full")
+        echo "📚 전체 히스토리 요약 시작"
+        bash ~/devtrace/collect.sh full
+        python3 ~/devtrace/analyze.py full
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/journal/full_summary.md"
+        ;;
+
+    "range")
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "❌ 사용법: devtrace.sh range 2026-04-01 2026-04-12"
+            exit 1
+        fi
+        echo "📅 날짜 범위 분석: $2 ~ $3"
+        bash ~/devtrace/collect.sh range "$2" "$3"
+        python3 ~/devtrace/analyze.py range "$2" "$3"
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/journal/range_${2}_${3}.md"
+        ;;
+
+    "project")
+        if [ -z "$2" ]; then
+            echo "❌ 사용법: devtrace.sh project 프로젝트이름"
+            echo ""
+            echo "📁 인식된 프로젝트 목록:"
+            find "$PROJECT_DIR" -maxdepth 2 -name ".git" -type d 2>/dev/null \
+                | xargs -I{} dirname {} \
+                | xargs -I{} basename {}
+            exit 1
+        fi
+        echo "🔍 프로젝트 분석: $2"
+        bash ~/devtrace/collect.sh project "$2"
+        python3 ~/devtrace/analyze.py project "$2"
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/journal/project_${2}.md"
+        ;;
+
+    "regenerate")
+        if [ -z "$2" ]; then
+            echo "❌ 사용법: devtrace.sh regenerate 2026-04-12"
+            exit 1
+        fi
+        echo "🔄 재생성: $2"
+        python3 ~/devtrace/analyze.py regenerate "$2"
+        ;;
+
+    "weekly")
+        echo "📊 주간 리포트 생성"
+        python3 ~/devtrace/report.py weekly
+        echo ""
+        echo "📤 GitHub push 중..."
+        cd ~/devtrace
+        git add journal/ portfolio/ 2>/dev/null
+        git commit -m "devtrace: $(date +%Y-W%U) weekly 리포트" 2>/dev/null && \
+            git push origin master 2>/dev/null && \
+            echo "✅ GitHub push 완료" || \
+            echo "⚠️  GitHub push 실패 (리포트는 로컬에 저장됨)"
+        ;;
+
+    "portfolio")
+        if [ -z "$2" ]; then
+            echo "❌ 사용법: devtrace.sh portfolio 프로젝트이름"
+            exit 1
+        fi
+        echo "🏗  포트폴리오 생성: $2"
+        python3 ~/devtrace/report.py portfolio "$2"
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/portfolio/${2}_README.md"
+        ;;
+
+    "interview")
+        if [ -z "$2" ]; then
+            echo "❌ 사용법: devtrace.sh interview 프로젝트이름"
+            exit 1
+        fi
+        echo "🎤 면접 질문 생성: $2"
+        python3 ~/devtrace/report.py interview "$2"
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/portfolio/${2}_interview.md"
+        ;;
+
+    "start")
+        echo "👁  파일 감시 데몬 시작"
+        bash ~/devtrace/daemon.sh
+        ;;
+
+    "stop")
+        if [ -f /tmp/devtrace_daemon.pid ]; then
+            kill $(cat /tmp/devtrace_daemon.pid)
+            rm /tmp/devtrace_daemon.pid
+            echo "✅ 데몬 종료"
+        else
+            echo "❌ 실행 중인 데몬 없음"
+        fi
+        ;;
+
+    "status")
+        if [ -f /tmp/devtrace_daemon.pid ]; then
+            PID=$(cat /tmp/devtrace_daemon.pid)
+            if kill -0 "$PID" 2>/dev/null; then
+                echo "✅ 데몬 실행 중 (PID: $PID)"
+            else
+                echo "❌ 데몬 종료됨"
+            fi
+        else
+            echo "❌ 데몬 실행 안 됨"
+        fi
+        echo ""
+        echo "📚 저장된 일지 (최근 5개):"
+        ls ~/devtrace/journal/*.md 2>/dev/null | tail -5
+        ;;
+
+    *)
+        echo "사용법:"
+        echo "  devtrace.sh daily                      → 오늘 일지 생성"
+        echo "  devtrace.sh full                       → 전체 히스토리 요약"
+        echo "  devtrace.sh range 2026-04-01 2026-04-12 → 날짜 범위 분석"
+        echo "  devtrace.sh project 프로젝트이름       → 특정 프로젝트 분석"
+        echo "  devtrace.sh regenerate 2026-04-12      → 일지 재생성"
+        echo "  devtrace.sh weekly                     → 주간 리포트"
+        echo "  devtrace.sh portfolio 프로젝트이름     → 포트폴리오 생성"
+        echo "  devtrace.sh interview 프로젝트이름     → 면접 질문 생성"
+        echo "  devtrace.sh start                      → 파일 감시 데몬 시작"
+        echo "  devtrace.sh stop                       → 데몬 종료"
+        echo "  devtrace.sh status                     → 상태 확인"
+        ;;
+esac
+EOF
+
+chmod +x ~/devtrace/devtrace.sh
+echo "✅ devtrace.sh 완료"
+cat > ~/devtrace/collect.sh << 'ENDOFFILE'
+
+source ~/devtrace/config.env
+
+MODE="${1:-daily}"
+TODAY=$(date +%Y-%m-%d)
+
+case "$MODE" in
+    "daily")
+        echo "📡 DevTrace 수집 시작: $TODAY"
+        OUT_DIR="$LOG_DIR/$TODAY"
+        DATE_FROM="$TODAY"
+        DATE_TO="$TODAY"
+        SEARCH_DIR="$PROJECT_DIR"
+        EXCLUDE_DEVTRACE=true
+        ;;
+    "full")
+        echo "📚 전체 히스토리 수집 시작"
+        OUT_DIR="$LOG_DIR/full"
+        DATE_FROM=""
+        DATE_TO=""
+        SEARCH_DIR="$PROJECT_DIR"
+        EXCLUDE_DEVTRACE=true
+        ;;
+    "range")
+        DATE_FROM="${2:-$TODAY}"
+        DATE_TO="${3:-$TODAY}"
+        echo "📅 날짜 범위 수집: $DATE_FROM ~ $DATE_TO"
+        OUT_DIR="$LOG_DIR/range_${DATE_FROM}_${DATE_TO}"
+        SEARCH_DIR="$PROJECT_DIR"
+        EXCLUDE_DEVTRACE=true
+        ;;
+    "project")
+        PROJECT_NAME="${2:-}"
+        if [ -z "$PROJECT_NAME" ]; then
+            echo "❌ 프로젝트 이름을 입력하세요."
+            exit 1
+        fi
+        FOUND=$(find "$PROJECT_DIR" -maxdepth 4 -type d -name "$PROJECT_NAME" \
+            ! -path "*/.git/*" 2>/dev/null | head -1)
+        if [ -z "$FOUND" ]; then
+            echo "❌ 프로젝트 폴더를 찾을 수 없습니다: $PROJECT_NAME"
+            echo "   현재 인식된 프로젝트 목록:"
+            find "$PROJECT_DIR" -maxdepth 3 -name ".git" -type d 2>/dev/null \
+                | xargs -I{} dirname {} \
+                | xargs -I{} basename {}
+            exit 1
+        fi
+        echo "🔍 프로젝트 수집: $PROJECT_NAME ($FOUND)"
+        OUT_DIR="$LOG_DIR/project_${PROJECT_NAME}"
+        DATE_FROM=""
+        DATE_TO=""
+        SEARCH_DIR="$FOUND"
+        EXCLUDE_DEVTRACE=false
+        ;;
+esac
+
+mkdir -p "$OUT_DIR"
+
+echo "[1/5] 터미널 히스토리 수집 중..."
+history -a
+
+if [ "$MODE" = "full" ] || [ "$MODE" = "project" ]; then
+    cat ~/.bash_history > "$OUT_DIR/history.txt"
+elif [ "$MODE" = "range" ]; then
+    FROM_TS=$(date -d "$DATE_FROM 00:00:00" +%s 2>/dev/null)
+    TO_TS=$(date -d "$DATE_TO 23:59:59" +%s 2>/dev/null)
+    if grep -q "^#[0-9]" ~/.bash_history 2>/dev/null; then
+        awk -v from="$FROM_TS" -v to="$TO_TS" '
+            /^#[0-9]+/ { t = substr($0,2)+0; show=(t>=from && t<=to) }
+            !/^#/ && show { print }
+        ' ~/.bash_history > "$OUT_DIR/history.txt"
+    else
+        cat ~/.bash_history > "$OUT_DIR/history.txt"
+    fi
+else
+    if grep -q "^#[0-9]" ~/.bash_history 2>/dev/null; then
+        TODAY_TIMESTAMP=$(date -d "$TODAY 00:00:00" +%s)
+        awk -v ts="$TODAY_TIMESTAMP" '
+            /^#[0-9]+/ { t = substr($0,2)+0; show=(t>=ts) }
+            !/^#/ && show { print }
+        ' ~/.bash_history > "$OUT_DIR/history.txt"
+    else
+        tail -200 ~/.bash_history > "$OUT_DIR/history.txt"
+    fi
+fi
+
+echo "    → $(wc -l < "$OUT_DIR/history.txt")개 명령어 수집"
+
+echo "[2/5] 파일 변경 내역 수집 중..."
+
+run_find() {
+    local search_dir="$1"
+    local extra_opts="$2"
+    if [ "$EXCLUDE_DEVTRACE" = true ]; then
+        find "$search_dir" -type f $extra_opts \
+            \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
+               -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
+               -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
+               -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
+               -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
+            ! -path "*/node_modules/*" ! -path "*/.git/*" \
+            ! -path "*/venv/*" ! -path "*/devtrace/*" \
+            -printf "%T+ %p\n" 2>/dev/null | sort -r
+    else
+        find "$search_dir" -type f $extra_opts \
+            \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
+               -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
+               -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
+               -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
+               -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
+            ! -path "*/node_modules/*" ! -path "*/.git/*" \
+            ! -path "*/venv/*" \
+            -printf "%T+ %p\n" 2>/dev/null | sort -r
+    fi
+}
+
+if [ "$MODE" = "daily" ]; then
+    run_find "$SEARCH_DIR" "-mtime -1" > "$OUT_DIR/files.txt"
+elif [ "$MODE" = "range" ]; then
+    DATE_TO_NEXT=$(date -d "$DATE_TO +1 day" +%Y-%m-%d)
+    run_find "$SEARCH_DIR" "-newermt $DATE_FROM ! -newermt $DATE_TO_NEXT" > "$OUT_DIR/files.txt"
+else
+    run_find "$SEARCH_DIR" "" > "$OUT_DIR/files.txt"
+fi
+
+echo "    → $(wc -l < "$OUT_DIR/files.txt")개 파일 변경 감지"
+echo "    → 기술 스택 감지 중..."
+{
+    echo "## 기술 스택 감지"
+    declare -A tech_count
+    while IFS= read -r line; do
+        filepath=$(echo "$line" | awk '{print $2}')
+        ext="${filepath##*.}"
+        case "$ext" in
+            py)      tech="Python" ;;
+            js|jsx)  tech="JavaScript/React" ;;
+            ts|tsx)  tech="TypeScript" ;;
+            html)    tech="HTML" ;;
+            css)     tech="CSS" ;;
+            sh)      tech="Shell" ;;
+            java)    tech="Java" ;;
+            c|cpp)   tech="C/C++" ;;
+            go)      tech="Go" ;;
+            rs)      tech="Rust" ;;
+            vue)     tech="Vue.js" ;;
+            rb)      tech="Ruby" ;;
+            *)       tech="기타" ;;
+        esac
+        tech_count[$tech]=$((${tech_count[$tech]:-0} + 1))
+    done < "$OUT_DIR/files.txt"
+    for tech in "${!tech_count[@]}"; do
+        echo "  $tech: ${tech_count[$tech]}개 파일"
+    done
+} > "$OUT_DIR/tech_stack.txt"
+
+echo "[3/5] Git 활동 수집 중..."
+
+GIT_FILE="$OUT_DIR/git.txt"
+DIFF_FILE="$OUT_DIR/diff.txt"
+COMMIT_QUALITY_FILE="$OUT_DIR/commit_quality.txt"
+DIFF_CONTENT_FILE="$OUT_DIR/diff_content.txt"
+UNCOMMITTED_FILE="$OUT_DIR/uncommitted.txt"
+
+echo "" > "$GIT_FILE"
+echo "" > "$DIFF_FILE"
+echo "## 커밋 메시지 품질 체크" > "$COMMIT_QUALITY_FILE"
+echo "" > "$DIFF_CONTENT_FILE"
+echo "" > "$UNCOMMITTED_FILE"
+
+find "$SEARCH_DIR" -name ".git" -type d 2>/dev/null | while read gitdir; do
+    repo_dir=$(dirname "$gitdir")
+    repo_name=$(basename "$repo_dir")
+
+    if [ "$MODE" = "daily" ]; then
+        commits=$(git -C "$repo_dir" log \
+            --since="$TODAY 00:00:00" --until="$TODAY 23:59:59" \
+            --pretty=format:"[%h] %s (%ad)" --date=format:"%H:%M" 2>/dev/null)
+    elif [ "$MODE" = "range" ]; then
+        commits=$(git -C "$repo_dir" log \
+            --since="$DATE_FROM 00:00:00" --until="$DATE_TO 23:59:59" \
+            --pretty=format:"[%h] %s (%ad)" --date=format:"%Y-%m-%d %H:%M" 2>/dev/null)
+    else
+        commits=$(git -C "$repo_dir" log \
+            --pretty=format:"[%h] %s (%ad)" --date=format:"%Y-%m-%d %H:%M" 2>/dev/null)
+    fi
+
+    if [ -n "$commits" ]; then
+        echo "## 레포: $repo_name" >> "$GIT_FILE"
+        echo "$commits" >> "$GIT_FILE"
+        echo "" >> "$GIT_FILE"
+
+        echo "## $repo_name 변경 통계" >> "$DIFF_FILE"
+        git -C "$repo_dir" diff --stat HEAD~1 HEAD 2>/dev/null >> "$DIFF_FILE"
+        echo "" >> "$DIFF_FILE"
+
+        echo "### $repo_name" >> "$COMMIT_QUALITY_FILE"
+        git -C "$repo_dir" log --pretty=format:"%s" 2>/dev/null | while read msg; do
+            msg_len=${#msg}
+            if [ $msg_len -lt 5 ]; then
+                echo "  ⚠️  너무 짧음: \"$msg\" (${msg_len}자)" >> "$COMMIT_QUALITY_FILE"
+            elif echo "$msg" | grep -qiE "^(fix|update|test|wip|asdf|수정|변경|ㅁㄴㅇ)$"; then
+                echo "  ⚠️  불명확: \"$msg\"" >> "$COMMIT_QUALITY_FILE"
+            else
+                echo "  ✅ 양호: \"$msg\"" >> "$COMMIT_QUALITY_FILE"
+            fi
+        done
+        echo "" >> "$COMMIT_QUALITY_FILE"
+
+        echo "## $repo_name 최근 커밋 변경 내용" >> "$DIFF_CONTENT_FILE"
+        git -C "$repo_dir" diff HEAD~1 HEAD 2>/dev/null | head -100 >> "$DIFF_CONTENT_FILE"
+        echo "" >> "$DIFF_CONTENT_FILE"
+    fi
+
+    uncommitted_diff=$(git -C "$repo_dir" diff HEAD 2>/dev/null | head -100)
+    untracked=$(git -C "$repo_dir" ls-files --others --exclude-standard 2>/dev/null | head -50)
+    if [ -n "$uncommitted_diff" ] || [ -n "$untracked" ]; then
+        echo "## $repo_name" >> "$UNCOMMITTED_FILE"
+        if [ -n "$uncommitted_diff" ]; then
+            echo "### 미커밋 변경 내용 (tracked)" >> "$UNCOMMITTED_FILE"
+            echo "$uncommitted_diff" >> "$UNCOMMITTED_FILE"
+            echo "" >> "$UNCOMMITTED_FILE"
+        fi
+        if [ -n "$untracked" ]; then
+            echo "### 새로 추가된 미추적 파일" >> "$UNCOMMITTED_FILE"
+            echo "$untracked" >> "$UNCOMMITTED_FILE"
+            echo "" >> "$UNCOMMITTED_FILE"
+        fi
+    fi
+done
+
+echo "    → Git 로그 수집 완료"
+
+echo "[4/5] 에러 로그 수집 중..."
+ERROR_FILE="$OUT_DIR/errors.txt"
+SYSTEM_FILTER="gnome\|dbus\|systemd\|glib\|gtk\|pulseaudio\|bluez\|alsa\|Xorg\|wayland\|NetworkManager\|avahi\|snapd\|udisk\|upower\|sudoers\|pam_unix"
+
+if [ "$MODE" = "daily" ]; then
+    journalctl --since="$TODAY 00:00:00" --until="$TODAY 23:59:59" \
+        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -50 > "$ERROR_FILE"
+elif [ "$MODE" = "range" ]; then
+    journalctl --since="$DATE_FROM 00:00:00" --until="$DATE_TO 23:59:59" \
+        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
+else
+    journalctl -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
+fi
+
+grep -i "error\|not found\|permission denied\|failed\|traceback\|exception" \
+    "$OUT_DIR/history.txt" | grep -iv "$SYSTEM_FILTER" >> "$ERROR_FILE" 2>/dev/null
+echo "    → 에러 로그 수집 완료"
+
+echo "[5/5] 에러 패턴 분석 중..."
+PATTERN_FILE="$OUT_DIR/error_patterns.txt"
+echo "## 에러 패턴 분석" > "$PATTERN_FILE"
+
+ALL_ERRORS_FILE="$LOG_DIR/all_errors_combined.txt"
+find "$LOG_DIR" -name "errors.txt" ! -path "$OUT_DIR/*" 2>/dev/null \
+    | xargs cat 2>/dev/null > "$ALL_ERRORS_FILE"
+
+if [ -s "$ALL_ERRORS_FILE" ]; then
+    echo "### 반복 에러 감지" >> "$PATTERN_FILE"
+    grep -i "error\|failed\|not found" "$ERROR_FILE" 2>/dev/null \
+        | grep -iv "$SYSTEM_FILTER" \
+        | while read err_line; do
+        keyword=$(echo "$err_line" | grep -oiE "[A-Za-z]+Error|[A-Za-z]+Exception|not found|permission denied" | head -1)
+        if [ -n "$keyword" ]; then
+            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null)
+            count=${count:-0}
+            if [ "$count" -gt 1 ]; then
+                echo "  ⚠️  반복 에러: $keyword (과거 ${count}회 발생)" >> "$PATTERN_FILE"
+            fi
+        fi
+    done
+else
+    echo "  (과거 에러 데이터 없음 - 데이터 쌓이면 패턴 분석 가능)" >> "$PATTERN_FILE"
+fi
+
+echo ""
+echo "✅ 수집 완료!"
+echo "   저장 위치: $OUT_DIR"
+echo "   파일 목록:"
+ls "$OUT_DIR"
+ENDOFFILE
+
+chmod +x ~/devtrace/collect.sh
+echo "✅ collect.sh 완료"
+cat > ~/devtrace/analyze.py << 'ENDOFFILE'
+
+import os
+import sys
+import requests
+from datetime import datetime
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path.home() / "devtrace" / "config.env")
+
+API_KEY = os.getenv("GROQ_API_KEY")
+LOG_DIR = Path(os.getenv("LOG_DIR", str(Path.home() / "devtrace/logs")))
+JOURNAL_DIR = Path(os.getenv("JOURNAL_DIR", str(Path.home() / "devtrace/journal")))
+
+JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def read_file(path: Path) -> str:
+    if path.exists():
+        content = path.read_text(encoding="utf-8", errors="ignore").strip()
+        return content if content else "(없음)"
+    return "(없음)"
+
+
+def count_files(files_txt: str) -> int:
+    if files_txt == "(없음)":
+        return 0
+    return len([l for l in files_txt.strip().split("\n") if l.strip()])
+
+
+def has_meaningful_history(history: str) -> bool:
+    if history == "(없음)":
+        return False
+    lines = [l.strip() for l in history.strip().split("\n") if l.strip()]
+    return len(lines) >= 3
+
+
+def clean_tech_stack(tech: str) -> str:
+    if tech == "(없음)":
+        return "(없음)"
+    lines = tech.replace("## 기술 스택 감지", "").strip().split("\n")
+    cleaned = "\n".join(l.strip() for l in lines if l.strip())
+    return cleaned if cleaned else "(없음)"
+
+
+def load_logs(log_subdir: Path) -> dict:
+    return {
+        "history":        read_file(log_subdir / "history.txt"),
+        "files":          read_file(log_subdir / "files.txt"),
+        "git":            read_file(log_subdir / "git.txt"),
+        "diff":           read_file(log_subdir / "diff.txt"),
+        "errors":         read_file(log_subdir / "errors.txt"),
+        "tech_stack":     read_file(log_subdir / "tech_stack.txt"),
+        "commit_quality": read_file(log_subdir / "commit_quality.txt"),
+        "error_patterns": read_file(log_subdir / "error_patterns.txt"),
+        "diff_content":   read_file(log_subdir / "diff_content.txt"),
+        "uncommitted":    read_file(log_subdir / "uncommitted.txt"),
+    }
+
+
+def generate_empty_template(mode: str, label: str, logs: dict) -> str:
+    total_files = count_files(logs["files"])
+    git = logs["git"]
+    tech = clean_tech_stack(logs["tech_stack"])
+    commit_count = git.count("[") if git != "(없음)" else 0
+
+    if mode == "project":
+        return f"""# {label} 프로젝트 기록
+
+(터미널 활동 기록이 없어 상세 분석 불가)
+
+{git if git != "(없음)" else "커밋 기록 없음"}
+
+{tech}
+
+(터미널 활동 기록 없음 - 분석 불가)
+
+{logs['commit_quality'] if logs['commit_quality'] != "(없음)" else "없음"}
+
+- 총 파일 수: {total_files}개
+- Git 커밋 수: {commit_count}개
+- 추가된 코드: 변경 사항이 기록되지 않았습니다
+- 삭제된 코드: 변경 사항이 기록되지 않았습니다
+- 주요 언어: 기술 스택 항목을 참고해주세요
+- 작업 기간: 작업 기간을 확인할 수 없습니다
+"""
+    elif mode in ("range", "full"):
+        return f"""# {label} 개발 기록
+
+(터미널 활동 기록이 없어 상세 분석 불가)
+
+{tech}
+
+(터미널 활동 기록 없음 - 분석 불가)
+
+- 수정한 파일 수: {total_files}개
+- Git 커밋 수: {commit_count}개
+"""
+    else:
+        return f"""# {label} 개발 일지
+
+오늘 터미널 활동 기록이 없습니다.
+파일 변경은 {total_files}개 감지됐으나 작업 내용을 확인할 수 없습니다.
+내일부터는 터미널 히스토리가 자동으로 기록됩니다.
+
+{tech}
+
+없음
+
+없음
+
+없음
+
+오늘은 터미널 활동 기록이 없어 배운 점을 분석할 수 없습니다.
+
+- 수정한 파일 수: {total_files}개
+- Git 커밋 수: {commit_count}개
+- 추가된 코드: 변경 사항이 기록되지 않았습니다
+- 삭제된 코드: 변경 사항이 기록되지 않았습니다
+- 주로 사용한 기술: 기술 스택 항목을 참고해주세요
+
+아직 계획이 기록되지 않았습니다.
+"""
+
+
+def build_prompt(mode: str, logs: dict, label: str = "") -> str:
+    total_files = count_files(logs["files"])
+    tech = clean_tech_stack(logs["tech_stack"])
+
+    log_block = f"""
+{logs['history'][:2000]}
+
+{logs['files'][:800]}
+
+{logs['git'][:800]}
+
+{logs['diff'][:500]}
+
+{logs['diff_content'][:1000]}
+
+{logs['uncommitted'][:1000]}
+
+{logs['errors'][:400]}
+
+{tech}
+
+{logs['commit_quality'][:300]}
+
+{logs['error_patterns'][:300]}
+"""
+
+    common_rules = f"""
+[필수 규칙 - 반드시 지켜야 함]
+1. 모든 문장은 순수 한국어로만 작성할 것 (기술 용어 Python/Git/React 등은 예외).
+   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した, また, 開発),
+   베트남어 등 발음 기호가 붙은 알파벳(예: á, ư, ơ, đ), 그 외 한국어가 아닌 모든 외국어 단어.
+   작성을 마친 뒤, 전체 글을 단어 단위로 처음부터 끝까지 다시 훑어보고,
+   위 금지 문자가 단 하나라도 포함된 단어/문장을 발견하면 그 부분을 통째로
+   자연스러운 한국어 표현으로 바꿔서, 최종적으로 금지 문자가 0개인 상태로만 출력할 것.
+   점검 과정이나 "수정했습니다" 같은 메타 설명은 출력에 절대 포함하지 말 것.
+2. 기술 용어(Python, Git, React 등 영문 고유명사)는 그대로 써도 되지만 문장 자체는 반드시 한국어로.
+3. 로그에 정보가 없을 때는 "(데이터 없음)" 같은 placeholder 문자열을 절대 쓰지 말 것.
+   대신 짧은 한국어 문장으로 자연스럽게 표현할 것.
+4. 시스템 에러(gnome, dbus, pulseaudio, sudo 권한 등)는 트러블슈팅에 포함하지 말 것.
+5. 개발 관련 에러만 트러블슈팅에 포함할 것.
+6. 총 파일 수는 반드시 {total_files}개로 표시할 것.
+7. 주어진 [형식]의 섹션 헤더(이모지 포함)를 글자 그대로, 빠짐없이 사용할 것. 이모지를 빼거나 바꾸지 말 것.
+8. "마지막 커밋의 실제 변경 내용"과 "미커밋 변경 사항"에 구체적인 파일명/함수명/코드가 보이면,
+   "오늘 한 일"이나 "트러블슈팅"에 그 구체적인 내용을 반영할 것 (단, 없으면 억지로 만들지 말 것).
+"""
+
+    if mode == "full":
+        instruction = f"""# 전체 개발 히스토리 요약
+
+
+{tech}
+
+
+
+
+- 총 파일 수: {total_files}개
+- 주로 사용한 기술:
+- 주로 사용한 명령어 TOP 5:
+"""
+    elif mode == "range":
+        instruction = f"""# {label} 개발 기록
+
+
+
+
+
+
+- 수정한 파일 수: {total_files}개
+- Git 커밋 수: (git 로그에서 계산)개
+- 추가된 코드: (diff에서 확인)줄
+- 삭제된 코드: (diff에서 확인)줄
+- 주로 사용한 기술:
+"""
+    elif mode == "project":
+        instruction = f"""# {label} 프로젝트 기록
+
+
+
+{tech}
+
+
+
+- 총 파일 수: {total_files}개
+- Git 커밋 수: (git 로그에서 계산)개
+- 추가된 코드: (diff에서 확인)줄
+- 삭제된 코드: (diff에서 확인)줄
+- 주요 언어: (tech_stack에서 가장 많은 것)
+- 작업 기간: (첫 커밋 ~ 마지막 커밋)
+"""
+    else:
+        instruction = f"""# {label} 개발 일지
+
+
+{tech}
+
+
+
+
+
+- 수정한 파일 수: {total_files}개
+- Git 커밋 수: (git 로그에서 계산)개
+- 추가된 코드: (diff에서 확인)줄
+- 삭제된 코드: (diff에서 확인)줄
+- 주로 사용한 기술:
+
+"""
+
+    return f"""당신은 개발자의 작업 로그를 분석해서 개발 일지를 작성하는 전문가입니다.
+
+{common_rules}
+
+아래는 개발 활동 로그입니다.
+---
+{log_block}
+---
+
+위 로그를 바탕으로 아래 형식의 마크다운을 작성해주세요.
+
+{instruction}"""
+
+
+def call_groq_api(prompt: str) -> str:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    body = {
+        "model": "llama-3.3-70b-versatile",
+        "max_tokens": 3500,
+        "temperature": 0.3,
+        "messages": [
+            {
+                "role": "system",
+                "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요. 영어 문장, 일본어, 중국어는 절대 사용하지 마세요."
+            },
+            {"role": "user", "content": prompt}
+        ]
+    }
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=headers,
+        json=body,
+        timeout=30
+    )
+    if response.status_code != 200:
+        raise Exception(f"API 오류: {response.status_code} - {response.text}")
+
+    data = response.json()
+    choice = data["choices"][0]
+    if choice.get("finish_reason") == "length":
+        print("⚠️  응답이 토큰 한도로 잘렸을 수 있습니다 (finish_reason=length)")
+    return choice["message"]["content"]
+
+
+def save_journal(filename: str, content: str) -> Path:
+    filepath = JOURNAL_DIR / filename
+    filepath.write_text(content, encoding="utf-8")
+    print(f"✅ 저장 완료: {filepath}")
+    return filepath
+
+
+def main():
+    args = sys.argv[1:]
+
+    if not args:
+        mode = "daily"
+        today = datetime.now().strftime("%Y-%m-%d")
+        log_subdir = LOG_DIR / today
+        label = today
+        filename = f"{today}.md"
+    elif args[0] == "full":
+        mode = "full"
+        log_subdir = LOG_DIR / "full"
+        label = "전체"
+        filename = "full_summary.md"
+        print("📚 전체 히스토리 요약 시작")
+    elif args[0] == "range":
+        if len(args) < 3:
+            print("❌ 사용법: analyze.py range 2026-04-01 2026-04-12")
+            sys.exit(1)
+        mode = "range"
+        date_from, date_to = args[1], args[2]
+        log_subdir = LOG_DIR / f"range_{date_from}_{date_to}"
+        label = f"{date_from} ~ {date_to}"
+        filename = f"range_{date_from}_{date_to}.md"
+        print(f"📅 날짜 범위 분석: {label}")
+    elif args[0] == "project":
+        if len(args) < 2:
+            print("❌ 사용법: analyze.py project 프로젝트이름")
+            sys.exit(1)
+        mode = "project"
+        project_name = args[1]
+        log_subdir = LOG_DIR / f"project_{project_name}"
+        label = project_name
+        filename = f"project_{project_name}.md"
+        print(f"🔍 프로젝트 분석: {project_name}")
+    elif args[0] == "regenerate":
+        target = args[1] if len(args) > 1 else datetime.now().strftime("%Y-%m-%d")
+        print(f"🔄 재생성: {target}")
+        if target.startswith("project_"):
+            mode = "project"
+            log_subdir = LOG_DIR / target
+            label = target.replace("project_", "")
+            filename = f"{target}.md"
+        else:
+            mode = "daily"
+            log_subdir = LOG_DIR / target
+            label = target
+            filename = f"{target}.md"
+    else:
+        mode = "daily"
+        date_str = args[0]
+        log_subdir = LOG_DIR / date_str
+        label = date_str
+        filename = f"{date_str}.md"
+        print(f"🧠 AI 분석 시작: {date_str}")
+
+    if not log_subdir.exists():
+        print(f"⚠️  로그 폴더가 없습니다: {log_subdir}")
+        print("   collect.sh를 먼저 실행하세요.")
+        sys.exit(1)
+
+    logs = load_logs(log_subdir)
+
+    if all(v == "(없음)" for v in logs.values()):
+        print("⚠️  수집된 로그가 없습니다.")
+        sys.exit(1)
+
+    if not has_meaningful_history(logs["history"]):
+        print("ℹ️  터미널 히스토리가 없어 기본 템플릿으로 저장합니다.")
+        journal_content = generate_empty_template(mode, label, logs)
+    else:
+        prompt = build_prompt(mode, logs, label)
+        print("📡 Groq API 호출 중...")
+        journal_content = call_groq_api(prompt)
+
+    save_journal(filename, journal_content)
+
+    print("\n" + "="*50)
+    print(journal_content[:500] + "...")
+    print("="*50)
+
+
+if __name__ == "__main__":
+    main()
+ENDOFFILE
+
+echo "✅ analyze.py 완료"
+cat > ~/devtrace/report.py << 'ENDOFFILE'
+
+import os
+import sys
+import requests
+import re
+from datetime import datetime, timedelta
+from pathlib import Path
+from dotenv import load_dotenv
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+
+    nanum_fonts = [f for f in fm.findSystemFonts() if 'Nanum' in f or 'nanum' in f]
+    preferred = [f for f in nanum_fonts if 'NanumGothic.ttf' in f or 'NanumSquareR.ttf' in f]
+    font_path = preferred[0] if preferred else (nanum_fonts[0] if nanum_fonts else None)
+
+    if font_path:
+        fm.fontManager.addfont(font_path)
+        plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
+    else:
+        plt.rcParams['font.family'] = 'DejaVu Sans'
+    plt.rcParams['axes.unicode_minus'] = False
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+
+load_dotenv(Path.home() / "devtrace" / "config.env")
+
+API_KEY = os.getenv("GROQ_API_KEY")
+LOG_DIR = Path(os.getenv("LOG_DIR", str(Path.home() / "devtrace/logs")))
+JOURNAL_DIR = Path(os.getenv("JOURNAL_DIR", str(Path.home() / "devtrace/journal")))
+PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/portfolio")))
+
+PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {API_KEY}"
+    }
+    body = {
+        "model": "llama-3.3-70b-versatile",
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "messages": [
+            {
+                "role": "system",
+                "content": "당신은 한국어로만 응답하는 개발 일지 작성 전문가입니다. 반드시 한국어로만 작성하세요."
+            },
+            {"role": "user", "content": prompt}
+        ]
+    }
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=headers,
+        json=body,
+        timeout=30
+    )
+    if response.status_code != 200:
+        raise Exception(f"API 오류: {response.status_code}")
+    return response.json()["choices"][0]["message"]["content"]
+
+
+def load_week_journals(week_offset: int = 0) -> dict:
+    today = datetime.now() - timedelta(weeks=week_offset)
+    monday = today - timedelta(days=today.weekday())
+    journals = {}
+    for i in range(7):
+        date = monday + timedelta(days=i)
+        date_str = date.strftime("%Y-%m-%d")
+        filepath = JOURNAL_DIR / f"{date_str}.md"
+        if filepath.exists():
+            journals[date_str] = filepath.read_text(encoding="utf-8")
+    return journals
+
+
+def generate_weekly_report(journals: dict) -> str:
+    if not journals:
+        return "이번 주 기록된 일지가 없습니다."
+
+    dates = sorted(journals.keys())
+    week_start = dates[0]
+    week_end = dates[-1]
+
+    total_files = 0
+    total_commits = 0
+    prev_journals = load_week_journals(week_offset=1)
+
+    for content in journals.values():
+        m = re.search(r'수정한 파일 수.*?(\d+)', content)
+        if m: total_files += int(m.group(1))
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        if m: total_commits += int(m.group(1))
+
+    prev_commits = 0
+    for content in prev_journals.values():
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        if m: prev_commits += int(m.group(1))
+
+    if prev_commits > 0:
+        growth = ((total_commits - prev_commits) / prev_commits) * 100
+        growth_str = f"+{growth:.0f}% 📈" if growth > 0 else f"{growth:.0f}% 📉"
+    else:
+        growth_str = "첫 주 데이터"
+
+    report = f"""# 📊 주간 리포트 ({week_start} ~ {week_end})
+
+- 📅 활동한 날: {len(journals)}일
+- 📁 수정한 파일: 총 {total_files}개
+- 💾 Git 커밋: 총 {total_commits}개
+- 📈 지난 주 대비 커밋: {growth_str}
+
+"""
+    for date, content in sorted(journals.items()):
+        section = re.search(r'## 📋 오늘 한 일\n(.*?)\n##', content, re.DOTALL)
+        summary = section.group(1).strip() if section else "기록 없음"
+        first_line = summary.split('\n')[0]
+        report += f"- **{date}**: {first_line}\n"
+
+    return report
+
+
+def generate_portfolio(project_name: str) -> str:
+    project_journals = []
+    journal_dates = []
+
+    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
+        project_journals.append(md_file.read_text(encoding="utf-8"))
+
+    keywords = [k for k in re.split(r'[-_]', project_name.lower()) if len(k) >= 3]
+    if not keywords:
+        keywords = [project_name.lower()]
+
+    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        if any(k in content.lower() for k in keywords):
+            project_journals.append(f"[{md_file.stem}]\n{content}")
+            m = re.match(r'(\d{4}-\d{2}-\d{2})', md_file.stem)
+            if m:
+                journal_dates.append(m.group(1))
+
+    if not project_journals:
+        return f"'{project_name}' 관련 일지를 찾을 수 없습니다."
+
+    total_files = 0
+    total_commits = 0
+    total_added = 0
+    total_deleted = 0
+
+    for content in project_journals:
+        m = re.search(r'수정한 파일 수.*?(\d+)', content)
+        if m: total_files += int(m.group(1))
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        if m: total_commits += int(m.group(1))
+        m = re.search(r'추가된 코드.*?(\d+)', content)
+        if m: total_added += int(m.group(1))
+        m = re.search(r'삭제된 코드.*?(\d+)', content)
+        if m: total_deleted += int(m.group(1))
+
+    if journal_dates:
+        journal_dates_sorted = sorted(set(journal_dates))
+        if len(journal_dates_sorted) == 1:
+            period_str = f"{journal_dates_sorted[0]} (1일)"
+        else:
+            period_str = f"{journal_dates_sorted[0]} ~ {journal_dates_sorted[-1]} ({len(journal_dates_sorted)}일)"
+    else:
+        period_str = "기록된 날짜 정보 없음"
+
+    all_content = "\n\n---\n\n".join(project_journals)
+    if len(all_content) > 8000:
+        all_content = all_content[:8000] + "\n...(이하 생략)"
+
+    prompt = f"""당신은 개발자의 개발 일지를 읽고 GitHub 포트폴리오 README를 작성하는 전문가입니다.
+
+아래는 "{project_name}" 프로젝트 관련 개발 일지 모음입니다.
+
+{all_content}
+
+[필수 규칙 - 언어]
+1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
+   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した), 베트남어 발음기호 알파벳.
+   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
+   점검 과정이나 메타 설명은 출력에 포함하지 말 것.
+
+[중요 - 개발 통계 작성 규칙]
+아래 통계값을 절대 추측하거나 바꾸지 말고 그대로 사용할 것:
+- 개발 기간: {period_str}
+- 총 커밋 수: {total_commits}개
+- 총 수정 파일: {total_files}개
+- 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
+
+
+
+
+
+
+- 개발 기간: {period_str}
+- 총 커밋 수: {total_commits}개
+- 총 수정 파일: {total_files}개
+- 추가된 코드: {total_added}줄 / 삭제된 코드: {total_deleted}줄
+
+"""
+
+    return call_groq_api(prompt, temperature=0.3)
+
+
+def generate_interview_questions(project_name: str) -> str:
+    project_journals = []
+
+    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
+        project_journals.append(md_file.read_text(encoding="utf-8"))
+
+    keywords = [k for k in re.split(r'[-_]', project_name.lower()) if len(k) >= 3]
+    if not keywords:
+        keywords = [project_name.lower()]
+
+    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        if any(k in content.lower() for k in keywords):
+            project_journals.append(f"[{md_file.stem}]\n{content}")
+
+    if not project_journals:
+        return f"'{project_name}' 관련 일지를 찾을 수 없습니다. portfolio가 정상 동작하는지 먼저 확인하세요."
+
+    all_content = "\n\n---\n\n".join(project_journals)
+    if len(all_content) > 8000:
+        all_content = all_content[:8000] + "\n...(이하 생략)"
+
+    prompt = f"""당신은 신입 개발자의 기술 면접을 준비시키는 면접관입니다.
+
+아래는 "{project_name}" 프로젝트의 개발 일지 모음입니다.
+
+{all_content}
+
+[필수 규칙]
+1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
+   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した, また),
+   베트남어 발음기호 알파벳, 그 외 한국어가 아닌 모든 외국어.
+   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
+2. 일지에 실제로 등장한 트러블슈팅/기술/커밋 내용을 바탕으로 질문을 만들 것.
+3. 각 질문에 일지 내용 근거의 모범 답안을 1인칭으로 작성할 것.
+4. 질문은 3개 카테고리로 총 5개:
+   - 트러블슈팅 경험 (2개)
+   - 기술 선택/구현 이유 (2개)
+   - 협업/회고/배운 점 (1개)
+5. placeholder 쓰지 말 것.
+
+
+
+**A1.**
+
+**A2.**
+
+
+**A3.**
+
+**A4.**
+
+
+**A5.**
+"""
+
+    try:
+        return call_groq_api(prompt, max_tokens=3000, temperature=0.3)
+    except Exception as e:
+        return f"⚠️ AI 호출 실패: {e}\n\n잠시 후 다시 시도하거나 재실행하세요."
+
+
+def draw_weekly_graph(journals: dict):
+    if not HAS_MATPLOTLIB:
+        print("⚠️  matplotlib 없음 - 그래프 생략")
+        return
+
+    dates = []
+    commits = []
+
+    for date, content in sorted(journals.items()):
+        dates.append(date[5:])
+        m = re.search(r'Git 커밋 수.*?(\d+)', content)
+        commits.append(int(m.group(1)) if m else 0)
+
+    if not dates or all(c == 0 for c in commits):
+        print("⚠️  커밋 데이터 없음 - 그래프 생략")
+        return
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    bars = ax.bar(dates, commits, color='#4CAF50', alpha=0.8)
+    ax.set_title('이번 주 일별 커밋 수', fontsize=14, pad=15)
+    ax.set_xlabel('날짜')
+    ax.set_ylabel('커밋 수')
+
+    for bar, val in zip(bars, commits):
+        if val > 0:
+            ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.05,
+                   str(val), ha='center', va='bottom')
+
+    plt.tight_layout()
+    graph_path = PORTFOLIO_DIR / "weekly_graph.png"
+    plt.savefig(graph_path, dpi=150)
+    plt.close()
+    print(f"📊 그래프 저장: {graph_path}")
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "weekly"
+
+    if mode == "weekly":
+        print("📊 주간 리포트 생성 중...")
+        journals = load_week_journals()
+        report = generate_weekly_report(journals)
+        week_num = datetime.now().strftime("%Y-W%U")
+        filepath = JOURNAL_DIR / f"weekly_{week_num}.md"
+        filepath.write_text(report, encoding="utf-8")
+        print(f"✅ 주간 리포트 저장: {filepath}")
+        draw_weekly_graph(journals)
+
+    elif mode == "portfolio":
+        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
+        print(f"🏗  포트폴리오 생성 중: {project_name}")
+        readme = generate_portfolio(project_name)
+        readme_path = PORTFOLIO_DIR / f"{project_name}_README.md"
+        readme_path.write_text(readme, encoding="utf-8")
+        print(f"✅ 포트폴리오 저장: {readme_path}")
+        print("\n미리보기:")
+        print(readme[:600])
+
+    elif mode == "interview":
+        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
+        print(f"🎤 면접 질문 생성 중: {project_name}")
+        result = generate_interview_questions(project_name)
+        result_path = PORTFOLIO_DIR / f"{project_name}_interview.md"
+        result_path.write_text(result, encoding="utf-8")
+        print(f"✅ 면접 질문 저장: {result_path}")
+        print("\n미리보기:")
+        print(result[:600])
+
+    else:
+        print("사용법:")
+        print("  report.py weekly              → 주간 리포트")
+        print("  report.py portfolio [이름]    → 포트폴리오 생성")
+        print("  report.py interview [이름]    → 면접 질문 생성")
+
+
+if __name__ == "__main__":
+    main()
+ENDOFFILE
+
+echo "✅ report.py 완료"
+python3 -c "import ast; ast.parse(open('/home/user/devtrace/analyze.py').read()); print('analyze.py ✅')"
+python3 -c "import ast; ast.parse(open('/home/user/devtrace/report.py').read()); print('report.py ✅')"
+grep -n "temperature" ~/devtrace/analyze.py ~/devtrace/report.py
+grep -n "generate_interview_questions\|interview" ~/devtrace/report.py | head -5
+grep -n "diff_content\|uncommitted" ~/devtrace/collect.sh | head -5
+grep -n "interview\|push origin" ~/devtrace/devtrace.sh | head -10

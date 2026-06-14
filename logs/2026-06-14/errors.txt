@@ -1,2 +1,24 @@
--- No entries --
 **A2.** `FileNotFoundError`와 `ValueError`를 처리하기 위해, 파일을 읽어올 때 파일이 존재하는지 확인하고, 파일의 내용을 처리할 때 값이 유효한지 확인하는 코드를 추가하였습니다. 또한, 오류가 발생할 경우 적절한 오류 메시지를 출력하여 사용자가 오류를 쉽게 파악할 수 있도록 하였습니다.
+ERROR_FILE="$OUT_DIR/errors.txt"
+        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -50 > "$ERROR_FILE"
+        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
+    journalctl -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
+grep -i "error\|not found\|permission denied\|failed\|traceback\|exception" \
+    "$OUT_DIR/history.txt" | grep -iv "$SYSTEM_FILTER" >> "$ERROR_FILE" 2>/dev/null
+PATTERN_FILE="$OUT_DIR/error_patterns.txt"
+ALL_ERRORS_FILE="$LOG_DIR/all_errors_combined.txt"
+find "$LOG_DIR" -name "errors.txt" ! -path "$OUT_DIR/*" 2>/dev/null \
+    | xargs cat 2>/dev/null > "$ALL_ERRORS_FILE"
+if [ -s "$ALL_ERRORS_FILE" ]; then
+    grep -i "error\|failed\|not found" "$ERROR_FILE" 2>/dev/null \
+        keyword=$(echo "$err_line" | grep -oiE "[A-Za-z]+Error|[A-Za-z]+Exception|not found|permission denied" | head -1)
+            count=$(grep -ic "$keyword" "$ALL_ERRORS_FILE" 2>/dev/null)
+        content = path.read_text(encoding="utf-8", errors="ignore").strip()
+        "errors":         read_file(log_subdir / "errors.txt"),
+        "error_patterns": read_file(log_subdir / "error_patterns.txt"),
+{logs['errors'][:400]}
+{logs['error_patterns'][:300]}
+        raise Exception(f"API 오류: {response.status_code} - {response.text}")
+except ImportError:
+        raise Exception(f"API 오류: {response.status_code}")
+    except Exception as e:
