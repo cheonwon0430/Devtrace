@@ -38,7 +38,6 @@ def has_meaningful_history(history: str) -> bool:
 
 
 def clean_tech_stack(tech: str) -> str:
-    """기술 스택 텍스트 정리 - 헤더 제거 + 들여쓰기 제거"""
     if tech == "(없음)":
         return "(없음)"
     lines = tech.replace("## 기술 스택 감지", "").strip().split("\n")
@@ -56,11 +55,12 @@ def load_logs(log_subdir: Path) -> dict:
         "tech_stack":     read_file(log_subdir / "tech_stack.txt"),
         "commit_quality": read_file(log_subdir / "commit_quality.txt"),
         "error_patterns": read_file(log_subdir / "error_patterns.txt"),
+        "diff_content":   read_file(log_subdir / "diff_content.txt"),
+        "uncommitted":    read_file(log_subdir / "uncommitted.txt"),
     }
 
 
 def generate_empty_template(mode: str, label: str, logs: dict) -> str:
-    """히스토리 없을 때 기본 템플릿 반환 (AI 호출 없음)"""
     total_files = count_files(logs["files"])
     git = logs["git"]
     tech = clean_tech_stack(logs["tech_stack"])
@@ -92,7 +92,6 @@ def generate_empty_template(mode: str, label: str, logs: dict) -> str:
 - 주요 언어: 기술 스택 항목을 참고해주세요
 - 작업 기간: 작업 기간을 확인할 수 없습니다
 """
-
     elif mode in ("range", "full"):
         return f"""# {label} 개발 기록
 
@@ -109,9 +108,7 @@ def generate_empty_template(mode: str, label: str, logs: dict) -> str:
 - 수정한 파일 수: {total_files}개
 - Git 커밋 수: {commit_count}개
 """
-
     else:
-        # daily
         return f"""# {label} 개발 일지
 
 ## 📋 오늘 한 일
@@ -147,7 +144,6 @@ def generate_empty_template(mode: str, label: str, logs: dict) -> str:
 
 
 def build_prompt(mode: str, logs: dict, label: str = "") -> str:
-
     total_files = count_files(logs["files"])
     tech = clean_tech_stack(logs["tech_stack"])
 
@@ -164,6 +160,12 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 ### 코드 변경 통계 (git diff)
 {logs['diff'][:500]}
 
+### 마지막 커밋의 실제 변경 내용
+{logs['diff_content'][:1000]}
+
+### 미커밋 변경 사항 (현재 작업 중인 코드)
+{logs['uncommitted'][:1000]}
+
 ### 에러 로그 (개발 에러만)
 {logs['errors'][:400]}
 
@@ -179,58 +181,55 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 
     common_rules = f"""
 [필수 규칙 - 반드시 지켜야 함]
-1. 모든 출력은 반드시 한국어로만 작성할 것. 영어 단어, 일본어(예: また, です), 중국어
-   글자가 단 한 글자라도 섞이면 안 됨. 작성 후 스스로 다시 읽고 한국어가 아닌
-   문자가 있으면 그 부분을 한국어로 고쳐서 출력할 것.
+1. 모든 문장은 순수 한국어로만 작성할 것 (기술 용어 Python/Git/React 등은 예외).
+   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した, また, 開発),
+   베트남어 등 발음 기호가 붙은 알파벳(예: á, ư, ơ, đ), 그 외 한국어가 아닌 모든 외국어 단어.
+   작성을 마친 뒤, 전체 글을 단어 단위로 처음부터 끝까지 다시 훑어보고,
+   위 금지 문자가 단 하나라도 포함된 단어/문장을 발견하면 그 부분을 통째로
+   자연스러운 한국어 표현으로 바꿔서, 최종적으로 금지 문자가 0개인 상태로만 출력할 것.
+   점검 과정이나 "수정했습니다" 같은 메타 설명은 출력에 절대 포함하지 말 것.
 2. 기술 용어(Python, Git, React 등 영문 고유명사)는 그대로 써도 되지만 문장 자체는 반드시 한국어로.
 3. 로그에 정보가 없을 때는 "(데이터 없음)" 같은 placeholder 문자열을 절대 쓰지 말 것.
    대신 짧은 한국어 문장으로 자연스럽게 표현할 것.
-   예: "오늘은 기록된 트러블슈팅이 없습니다.", "내일 할 일은 아직 정해지지 않았습니다."
 4. 시스템 에러(gnome, dbus, pulseaudio, sudo 권한 등)는 트러블슈팅에 포함하지 말 것.
 5. 개발 관련 에러만 트러블슈팅에 포함할 것.
 6. 총 파일 수는 반드시 {total_files}개로 표시할 것.
-7. 아래 [형식]에 주어진 섹션 헤더(이모지 포함)를 글자 그대로, 빠짐없이 사용할 것.
-   이모지를 빼거나 다른 이모지로 바꾸지 말 것.
+7. 주어진 [형식]의 섹션 헤더(이모지 포함)를 글자 그대로, 빠짐없이 사용할 것. 이모지를 빼거나 바꾸지 말 것.
+8. "마지막 커밋의 실제 변경 내용"과 "미커밋 변경 사항"에 구체적인 파일명/함수명/코드가 보이면,
+   "오늘 한 일"이나 "트러블슈팅"에 그 구체적인 내용을 반영할 것 (단, 없으면 억지로 만들지 말 것).
 """
 
     if mode == "full":
         instruction = f"""# 전체 개발 히스토리 요약
 
 ## 📋 주요 작업 목록
-(전체 히스토리에서 의미있는 작업들을 시간순으로 정리)
 
 ## 🛠 사용한 기술 스택
 {tech}
 
 ## 🐛 반복된 에러 패턴
-(같은 에러를 여러 번 겪었다면 분석, 없으면 "없음")
 
 ## 💡 학습 흔적
 
 ## ⚠️ 커밋 메시지 개선 제안
-(품질 체크 결과 기반, 양호하면 "없음")
 
 ## 📊 전체 통계
 - 총 파일 수: {total_files}개
 - 주로 사용한 기술:
 - 주로 사용한 명령어 TOP 5:
 """
-
     elif mode == "range":
         instruction = f"""# {label} 개발 기록
 
 ## 📋 기간 내 주요 작업
-(날짜순으로 정리)
 
 ## 🛠 사용한 기술 스택
 
 ## 🐛 트러블슈팅
-(개발 관련 에러만, 없으면 "없음")
 
 ## 💡 배운 것들
 
 ## ⚠️ 커밋 메시지 개선 제안
-(양호하면 "없음")
 
 ## 📊 기간 통계
 - 수정한 파일 수: {total_files}개
@@ -239,24 +238,19 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 - 삭제된 코드: (diff에서 확인)줄
 - 주로 사용한 기술:
 """
-
     elif mode == "project":
         instruction = f"""# {label} 프로젝트 기록
 
 ## 📌 프로젝트 개요
-(파일 목록과 git 로그를 바탕으로 프로젝트 설명)
 
 ## 📋 작업 히스토리
-(git 커밋 기록을 날짜별로 정리)
 
 ## 🛠 사용한 기술 스택
 {tech}
 
 ## 🐛 트러블슈팅
-(개발 관련 에러만, 없으면 "없음")
 
 ## ⚠️ 커밋 메시지 개선 제안
-(양호하면 "없음")
 
 ## 📊 프로젝트 통계
 - 총 파일 수: {total_files}개
@@ -266,24 +260,19 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 - 주요 언어: (tech_stack에서 가장 많은 것)
 - 작업 기간: (첫 커밋 ~ 마지막 커밋)
 """
-
     else:
         instruction = f"""# {label} 개발 일지
 
 ## 📋 오늘 한 일
-(오늘 진행한 작업을 3~5줄로 요약. 구체적으로. 절대 추측하지 말 것.)
 
 ## 🛠 사용한 기술 스택
 {tech}
 
 ## 🐛 트러블슈팅
-(개발 관련 에러만. 시스템 에러 제외. 없으면 "없음")
 
 ## ⚠️ 반복 에러 경고
-(같은 에러를 전에도 겪었다면 언급, 없으면 "없음")
 
 ## ⚠️ 커밋 메시지 개선 제안
-(품질 체크 결과 기반. 양호하면 "없음")
 
 ## 💡 배운 것
 
@@ -297,7 +286,7 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 ## 🔜 내일 할 일
 """
 
-    prompt = f"""당신은 개발자의 작업 로그를 분석해서 개발 일지를 작성하는 전문가입니다.
+    return f"""당신은 개발자의 작업 로그를 분석해서 개발 일지를 작성하는 전문가입니다.
 
 {common_rules}
 
@@ -310,8 +299,6 @@ def build_prompt(mode: str, logs: dict, label: str = "") -> str:
 
 {instruction}"""
 
-    return prompt
-
 
 def call_groq_api(prompt: str) -> str:
     headers = {
@@ -321,6 +308,7 @@ def call_groq_api(prompt: str) -> str:
     body = {
         "model": "llama-3.3-70b-versatile",
         "max_tokens": 3500,
+        "temperature": 0.3,
         "messages": [
             {
                 "role": "system",
@@ -361,14 +349,12 @@ def main():
         log_subdir = LOG_DIR / today
         label = today
         filename = f"{today}.md"
-
     elif args[0] == "full":
         mode = "full"
         log_subdir = LOG_DIR / "full"
         label = "전체"
         filename = "full_summary.md"
         print("📚 전체 히스토리 요약 시작")
-
     elif args[0] == "range":
         if len(args) < 3:
             print("❌ 사용법: analyze.py range 2026-04-01 2026-04-12")
@@ -379,7 +365,6 @@ def main():
         label = f"{date_from} ~ {date_to}"
         filename = f"range_{date_from}_{date_to}.md"
         print(f"📅 날짜 범위 분석: {label}")
-
     elif args[0] == "project":
         if len(args) < 2:
             print("❌ 사용법: analyze.py project 프로젝트이름")
@@ -390,7 +375,6 @@ def main():
         label = project_name
         filename = f"project_{project_name}.md"
         print(f"🔍 프로젝트 분석: {project_name}")
-
     elif args[0] == "regenerate":
         target = args[1] if len(args) > 1 else datetime.now().strftime("%Y-%m-%d")
         print(f"🔄 재생성: {target}")
@@ -404,7 +388,6 @@ def main():
             log_subdir = LOG_DIR / target
             label = target
             filename = f"{target}.md"
-
     else:
         mode = "daily"
         date_str = args[0]
@@ -424,7 +407,6 @@ def main():
         print("⚠️  수집된 로그가 없습니다.")
         sys.exit(1)
 
-    # 히스토리가 없으면 AI 호출 없이 기본 템플릿 출력
     if not has_meaningful_history(logs["history"]):
         print("ℹ️  터미널 히스토리가 없어 기본 템플릿으로 저장합니다.")
         journal_content = generate_empty_template(mode, label, logs)
@@ -442,4 +424,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

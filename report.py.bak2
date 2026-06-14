@@ -15,16 +15,19 @@ try:
     import matplotlib.pyplot as plt
     import matplotlib.font_manager as fm
 
+    # 한글 폰트 설정
     nanum_fonts = [f for f in fm.findSystemFonts() if 'Nanum' in f or 'nanum' in f]
+    # 코딩용(NanumGothicCoding) 대신 일반 고딕/스퀘어 폰트 우선
     preferred = [f for f in nanum_fonts if 'NanumGothic.ttf' in f or 'NanumSquareR.ttf' in f]
     font_path = preferred[0] if preferred else (nanum_fonts[0] if nanum_fonts else None)
 
     if font_path:
-        fm.fontManager.addfont(font_path)
+        fm.fontManager.addfont(font_path)  # matplotlib 폰트 매니저에 직접 등록 (캐시 문제 회피)
         plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
     else:
         plt.rcParams['font.family'] = 'DejaVu Sans'
     plt.rcParams['axes.unicode_minus'] = False
+
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
@@ -39,7 +42,7 @@ PORTFOLIO_DIR = Path(os.getenv("PORTFOLIO_DIR", str(Path.home() / "devtrace/port
 PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
+def call_groq_api(prompt: str, max_tokens: int = 2000) -> str:
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
@@ -47,7 +50,6 @@ def call_groq_api(prompt: str, max_tokens: int = 2000, temperature: float = 0.7)
     body = {
         "model": "llama-3.3-70b-versatile",
         "max_tokens": max_tokens,
-        "temperature": temperature,
         "messages": [
             {
                 "role": "system",
@@ -130,7 +132,7 @@ def generate_weekly_report(journals: dict) -> str:
 
 def generate_portfolio(project_name: str) -> str:
     project_journals = []
-    journal_dates = []
+    journal_dates = []  # 🆕 날짜 추출용
 
     for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
         project_journals.append(md_file.read_text(encoding="utf-8"))
@@ -141,8 +143,10 @@ def generate_portfolio(project_name: str) -> str:
 
     for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
         content = md_file.read_text(encoding="utf-8")
-        if any(k in content.lower() for k in keywords):
+        content_lower = content.lower()
+        if any(k in content_lower for k in keywords):
             project_journals.append(f"[{md_file.stem}]\n{content}")
+            # 파일명에서 날짜 추출 (예: 2026-06-13.md)
             m = re.match(r'(\d{4}-\d{2}-\d{2})', md_file.stem)
             if m:
                 journal_dates.append(m.group(1))
@@ -150,6 +154,7 @@ def generate_portfolio(project_name: str) -> str:
     if not project_journals:
         return f"'{project_name}' 관련 일지를 찾을 수 없습니다."
 
+    # 🆕 통계 사전 계산 (weekly와 동일한 regex 방식)
     total_files = 0
     total_commits = 0
     total_added = 0
@@ -165,6 +170,7 @@ def generate_portfolio(project_name: str) -> str:
         m = re.search(r'삭제된 코드.*?(\d+)', content)
         if m: total_deleted += int(m.group(1))
 
+    # 🆕 개발 기간 계산
     if journal_dates:
         journal_dates_sorted = sorted(set(journal_dates))
         if len(journal_dates_sorted) == 1:
@@ -178,20 +184,18 @@ def generate_portfolio(project_name: str) -> str:
     if len(all_content) > 8000:
         all_content = all_content[:8000] + "\n...(이하 생략)"
 
+    # 🆕 프롬프트에 사전 계산된 통계를 명시적으로 박아넣음
     prompt = f"""당신은 개발자의 개발 일지를 읽고 GitHub 포트폴리오 README를 작성하는 전문가입니다.
 
 아래는 "{project_name}" 프로젝트 관련 개발 일지 모음입니다.
 
 {all_content}
 
-[필수 규칙 - 언어]
-1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
-   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した), 베트남어 발음기호 알파벳.
-   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
-   점검 과정이나 메타 설명은 출력에 포함하지 말 것.
+위 일지들을 바탕으로 GitHub README.md를 한국어로 작성해주세요.
 
 [중요 - 개발 통계 작성 규칙]
-아래 통계값을 절대 추측하거나 바꾸지 말고 그대로 사용할 것:
+아래 "## 📈 개발 통계" 섹션의 4개 숫자는 이미 정확하게 계산되어 있으니,
+절대 추측하거나 다른 값으로 바꾸지 말고 아래 값을 그대로 사용할 것:
 - 개발 기간: {period_str}
 - 총 커밋 수: {total_commits}개
 - 총 수정 파일: {total_files}개
@@ -216,78 +220,7 @@ def generate_portfolio(project_name: str) -> str:
 ## 💡 배운 것들
 """
 
-    return call_groq_api(prompt, temperature=0.3)
-
-
-def generate_interview_questions(project_name: str) -> str:
-    project_journals = []
-
-    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
-        project_journals.append(md_file.read_text(encoding="utf-8"))
-
-    keywords = [k for k in re.split(r'[-_]', project_name.lower()) if len(k) >= 3]
-    if not keywords:
-        keywords = [project_name.lower()]
-
-    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
-        content = md_file.read_text(encoding="utf-8")
-        if any(k in content.lower() for k in keywords):
-            project_journals.append(f"[{md_file.stem}]\n{content}")
-
-    if not project_journals:
-        return f"'{project_name}' 관련 일지를 찾을 수 없습니다. portfolio가 정상 동작하는지 먼저 확인하세요."
-
-    all_content = "\n\n---\n\n".join(project_journals)
-    if len(all_content) > 8000:
-        all_content = all_content[:8000] + "\n...(이하 생략)"
-
-    prompt = f"""당신은 신입 개발자의 기술 면접을 준비시키는 면접관입니다.
-
-아래는 "{project_name}" 프로젝트의 개발 일지 모음입니다.
-
-{all_content}
-
-[필수 규칙]
-1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
-   금지 문자: 한자(漢字), 일본어 히라가나/가타카나(예: です, した, また),
-   베트남어 발음기호 알파벳, 그 외 한국어가 아닌 모든 외국어.
-   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
-2. 일지에 실제로 등장한 트러블슈팅/기술/커밋 내용을 바탕으로 질문을 만들 것.
-3. 각 질문에 일지 내용 근거의 모범 답안을 1인칭으로 작성할 것.
-4. 질문은 3개 카테고리로 총 5개:
-   - 트러블슈팅 경험 (2개)
-   - 기술 선택/구현 이유 (2개)
-   - 협업/회고/배운 점 (1개)
-5. placeholder 쓰지 말 것.
-
-# {project_name} 면접 예상 질문
-
-## 🔥 트러블슈팅 경험
-
-### Q1.
-**A1.**
-
-### Q2.
-**A2.**
-
-## 🛠 기술 선택 / 구현
-
-### Q3.
-**A3.**
-
-### Q4.
-**A4.**
-
-## 💡 협업 / 회고
-
-### Q5.
-**A5.**
-"""
-
-    try:
-        return call_groq_api(prompt, max_tokens=3000, temperature=0.3)
-    except Exception as e:
-        return f"⚠️ AI 호출 실패: {e}\n\n잠시 후 다시 시도하거나 재실행하세요."
+    return call_groq_api(prompt)
 
 
 def draw_weekly_graph(journals: dict):
@@ -348,21 +281,10 @@ def main():
         print("\n미리보기:")
         print(readme[:600])
 
-    elif mode == "interview":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else "My Project"
-        print(f"🎤 면접 질문 생성 중: {project_name}")
-        result = generate_interview_questions(project_name)
-        result_path = PORTFOLIO_DIR / f"{project_name}_interview.md"
-        result_path.write_text(result, encoding="utf-8")
-        print(f"✅ 면접 질문 저장: {result_path}")
-        print("\n미리보기:")
-        print(result[:600])
-
     else:
         print("사용법:")
         print("  report.py weekly              → 주간 리포트")
         print("  report.py portfolio [이름]    → 포트폴리오 생성")
-        print("  report.py interview [이름]    → 면접 질문 생성")
 
 
 if __name__ == "__main__":

@@ -6,9 +6,6 @@ source ~/devtrace/config.env
 MODE="${1:-daily}"
 TODAY=$(date +%Y-%m-%d)
 
-# ─────────────────────────────────────
-# 모드별 설정
-# ─────────────────────────────────────
 case "$MODE" in
     "daily")
         echo "📡 DevTrace 수집 시작: $TODAY"
@@ -61,17 +58,11 @@ esac
 
 mkdir -p "$OUT_DIR"
 
-
-# ─────────────────────────────────────
-# 1. 터미널 히스토리 수집
-# ─────────────────────────────────────
 echo "[1/5] 터미널 히스토리 수집 중..."
-
 history -a
 
 if [ "$MODE" = "full" ] || [ "$MODE" = "project" ]; then
     cat ~/.bash_history > "$OUT_DIR/history.txt"
-
 elif [ "$MODE" = "range" ]; then
     FROM_TS=$(date -d "$DATE_FROM 00:00:00" +%s 2>/dev/null)
     TO_TS=$(date -d "$DATE_TO 23:59:59" +%s 2>/dev/null)
@@ -83,9 +74,7 @@ elif [ "$MODE" = "range" ]; then
     else
         cat ~/.bash_history > "$OUT_DIR/history.txt"
     fi
-
 else
-    # daily
     if grep -q "^#[0-9]" ~/.bash_history 2>/dev/null; then
         TODAY_TIMESTAMP=$(date -d "$TODAY 00:00:00" +%s)
         awk -v ts="$TODAY_TIMESTAMP" '
@@ -99,60 +88,44 @@ fi
 
 echo "    → $(wc -l < "$OUT_DIR/history.txt")개 명령어 수집"
 
-
-# ─────────────────────────────────────
-# 2. 파일 변경 추적 + 기술 스택 감지
-# ─────────────────────────────────────
 echo "[2/5] 파일 변경 내역 수집 중..."
 
-# 공통 find 함수
 run_find() {
     local search_dir="$1"
     local extra_opts="$2"
-
     if [ "$EXCLUDE_DEVTRACE" = true ]; then
-        find "$search_dir" \
-            -type f \
-            $extra_opts \
+        find "$search_dir" -type f $extra_opts \
             \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
                -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
                -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
                -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
                -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
-            ! -path "*/node_modules/*" \
-            ! -path "*/.git/*" \
-            ! -path "*/venv/*" \
-            ! -path "*/devtrace/*" \
-            -printf "%T+ %p\n" 2>/dev/null \
-            | sort -r
+            ! -path "*/node_modules/*" ! -path "*/.git/*" \
+            ! -path "*/venv/*" ! -path "*/devtrace/*" \
+            -printf "%T+ %p\n" 2>/dev/null | sort -r
     else
-        find "$search_dir" \
-            -type f \
-            $extra_opts \
+        find "$search_dir" -type f $extra_opts \
             \( -name "*.py" -o -name "*.js" -o -name "*.jsx" \
                -o -name "*.ts" -o -name "*.tsx" -o -name "*.html" \
                -o -name "*.css" -o -name "*.sh" -o -name "*.java" \
                -o -name "*.c" -o -name "*.cpp" -o -name "*.go" \
                -o -name "*.rs" -o -name "*.vue" -o -name "*.rb" \) \
-            ! -path "*/node_modules/*" \
-            ! -path "*/.git/*" \
+            ! -path "*/node_modules/*" ! -path "*/.git/*" \
             ! -path "*/venv/*" \
-            -printf "%T+ %p\n" 2>/dev/null \
-            | sort -r
+            -printf "%T+ %p\n" 2>/dev/null | sort -r
     fi
 }
 
 if [ "$MODE" = "daily" ]; then
     run_find "$SEARCH_DIR" "-mtime -1" > "$OUT_DIR/files.txt"
 elif [ "$MODE" = "range" ]; then
-    run_find "$SEARCH_DIR" "-newermt $DATE_FROM ! -newermt $DATE_TO" > "$OUT_DIR/files.txt"
+    DATE_TO_NEXT=$(date -d "$DATE_TO +1 day" +%Y-%m-%d)
+    run_find "$SEARCH_DIR" "-newermt $DATE_FROM ! -newermt $DATE_TO_NEXT" > "$OUT_DIR/files.txt"
 else
     run_find "$SEARCH_DIR" "" > "$OUT_DIR/files.txt"
 fi
 
 echo "    → $(wc -l < "$OUT_DIR/files.txt")개 파일 변경 감지"
-
-# 기술 스택 감지
 echo "    → 기술 스택 감지 중..."
 {
     echo "## 기술 스택 감지"
@@ -177,25 +150,24 @@ echo "    → 기술 스택 감지 중..."
         esac
         tech_count[$tech]=$((${tech_count[$tech]:-0} + 1))
     done < "$OUT_DIR/files.txt"
-
     for tech in "${!tech_count[@]}"; do
         echo "  $tech: ${tech_count[$tech]}개 파일"
     done
 } > "$OUT_DIR/tech_stack.txt"
 
-
-# ─────────────────────────────────────
-# 3. Git 로그 + Diff + 커밋 품질 체크
-# ─────────────────────────────────────
 echo "[3/5] Git 활동 수집 중..."
 
 GIT_FILE="$OUT_DIR/git.txt"
 DIFF_FILE="$OUT_DIR/diff.txt"
 COMMIT_QUALITY_FILE="$OUT_DIR/commit_quality.txt"
+DIFF_CONTENT_FILE="$OUT_DIR/diff_content.txt"
+UNCOMMITTED_FILE="$OUT_DIR/uncommitted.txt"
 
 echo "" > "$GIT_FILE"
 echo "" > "$DIFF_FILE"
 echo "## 커밋 메시지 품질 체크" > "$COMMIT_QUALITY_FILE"
+echo "" > "$DIFF_CONTENT_FILE"
+echo "" > "$UNCOMMITTED_FILE"
 
 find "$SEARCH_DIR" -name ".git" -type d 2>/dev/null | while read gitdir; do
     repo_dir=$(dirname "$gitdir")
@@ -203,20 +175,15 @@ find "$SEARCH_DIR" -name ".git" -type d 2>/dev/null | while read gitdir; do
 
     if [ "$MODE" = "daily" ]; then
         commits=$(git -C "$repo_dir" log \
-            --since="$TODAY 00:00:00" \
-            --until="$TODAY 23:59:59" \
-            --pretty=format:"[%h] %s (%ad)" \
-            --date=format:"%H:%M" 2>/dev/null)
+            --since="$TODAY 00:00:00" --until="$TODAY 23:59:59" \
+            --pretty=format:"[%h] %s (%ad)" --date=format:"%H:%M" 2>/dev/null)
     elif [ "$MODE" = "range" ]; then
         commits=$(git -C "$repo_dir" log \
-            --since="$DATE_FROM 00:00:00" \
-            --until="$DATE_TO 23:59:59" \
-            --pretty=format:"[%h] %s (%ad)" \
-            --date=format:"%Y-%m-%d %H:%M" 2>/dev/null)
+            --since="$DATE_FROM 00:00:00" --until="$DATE_TO 23:59:59" \
+            --pretty=format:"[%h] %s (%ad)" --date=format:"%Y-%m-%d %H:%M" 2>/dev/null)
     else
         commits=$(git -C "$repo_dir" log \
-            --pretty=format:"[%h] %s (%ad)" \
-            --date=format:"%Y-%m-%d %H:%M" 2>/dev/null)
+            --pretty=format:"[%h] %s (%ad)" --date=format:"%Y-%m-%d %H:%M" 2>/dev/null)
     fi
 
     if [ -n "$commits" ]; then
@@ -240,51 +207,50 @@ find "$SEARCH_DIR" -name ".git" -type d 2>/dev/null | while read gitdir; do
             fi
         done
         echo "" >> "$COMMIT_QUALITY_FILE"
+
+        echo "## $repo_name 최근 커밋 변경 내용" >> "$DIFF_CONTENT_FILE"
+        git -C "$repo_dir" diff HEAD~1 HEAD 2>/dev/null | head -100 >> "$DIFF_CONTENT_FILE"
+        echo "" >> "$DIFF_CONTENT_FILE"
+    fi
+
+    uncommitted_diff=$(git -C "$repo_dir" diff HEAD 2>/dev/null | head -100)
+    untracked=$(git -C "$repo_dir" ls-files --others --exclude-standard 2>/dev/null | head -50)
+    if [ -n "$uncommitted_diff" ] || [ -n "$untracked" ]; then
+        echo "## $repo_name" >> "$UNCOMMITTED_FILE"
+        if [ -n "$uncommitted_diff" ]; then
+            echo "### 미커밋 변경 내용 (tracked)" >> "$UNCOMMITTED_FILE"
+            echo "$uncommitted_diff" >> "$UNCOMMITTED_FILE"
+            echo "" >> "$UNCOMMITTED_FILE"
+        fi
+        if [ -n "$untracked" ]; then
+            echo "### 새로 추가된 미추적 파일" >> "$UNCOMMITTED_FILE"
+            echo "$untracked" >> "$UNCOMMITTED_FILE"
+            echo "" >> "$UNCOMMITTED_FILE"
+        fi
     fi
 done
 
 echo "    → Git 로그 수집 완료"
 
-
-# ─────────────────────────────────────
-# 4. 에러 로그 (시스템 에러 필터링)
-# ─────────────────────────────────────
 echo "[4/5] 에러 로그 수집 중..."
-
 ERROR_FILE="$OUT_DIR/errors.txt"
 SYSTEM_FILTER="gnome\|dbus\|systemd\|glib\|gtk\|pulseaudio\|bluez\|alsa\|Xorg\|wayland\|NetworkManager\|avahi\|snapd\|udisk\|upower\|sudoers\|pam_unix"
 
 if [ "$MODE" = "daily" ]; then
-    journalctl --since="$TODAY 00:00:00" \
-        --until="$TODAY 23:59:59" \
-        -p err --no-pager 2>/dev/null \
-        | grep -iv "$SYSTEM_FILTER" \
-        | tail -50 > "$ERROR_FILE"
+    journalctl --since="$TODAY 00:00:00" --until="$TODAY 23:59:59" \
+        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -50 > "$ERROR_FILE"
 elif [ "$MODE" = "range" ]; then
-    journalctl --since="$DATE_FROM 00:00:00" \
-        --until="$DATE_TO 23:59:59" \
-        -p err --no-pager 2>/dev/null \
-        | grep -iv "$SYSTEM_FILTER" \
-        | tail -100 > "$ERROR_FILE"
+    journalctl --since="$DATE_FROM 00:00:00" --until="$DATE_TO 23:59:59" \
+        -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
 else
-    journalctl -p err --no-pager 2>/dev/null \
-        | grep -iv "$SYSTEM_FILTER" \
-        | tail -100 > "$ERROR_FILE"
+    journalctl -p err --no-pager 2>/dev/null | grep -iv "$SYSTEM_FILTER" | tail -100 > "$ERROR_FILE"
 fi
 
 grep -i "error\|not found\|permission denied\|failed\|traceback\|exception" \
-    "$OUT_DIR/history.txt" \
-    | grep -iv "$SYSTEM_FILTER" \
-    >> "$ERROR_FILE" 2>/dev/null
-
+    "$OUT_DIR/history.txt" | grep -iv "$SYSTEM_FILTER" >> "$ERROR_FILE" 2>/dev/null
 echo "    → 에러 로그 수집 완료"
 
-
-# ─────────────────────────────────────
-# 5. 에러 패턴 분석
-# ─────────────────────────────────────
 echo "[5/5] 에러 패턴 분석 중..."
-
 PATTERN_FILE="$OUT_DIR/error_patterns.txt"
 echo "## 에러 패턴 분석" > "$PATTERN_FILE"
 

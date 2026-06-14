@@ -82,6 +82,27 @@ case "${1:-daily}" in
         echo ""
         echo "📖 결과 확인: ~/devtrace/portfolio/${2}_README.md"
         ;;
+        
+    "push")
+        echo "📤 GitHub push 중..."
+        cd ~/devtrace
+        git add -A 2>/dev/null
+        git commit -m "devtrace: $(date +%Y-%m-%d) push" 2>/dev/null || true
+        git push origin master 2>/dev/null && \
+            echo "✅ GitHub push 완료" || \
+            echo "⚠️  push 실패 (로컬에는 저장됨)"
+        ;;
+
+    "interview")
+        if [ -z "$2" ]; then
+            echo "❌ 사용법: devtrace.sh interview 프로젝트이름"
+            exit 1
+        fi
+        echo "🎤 면접 질문 생성: $2"
+        python3 ~/devtrace/report.py interview "$2"
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/portfolio/${2}_interview.md"
+        ;;
 
     "start")
         echo "👁  파일 감시 데몬 시작"
@@ -123,9 +144,10 @@ case "${1:-daily}" in
         echo "  devtrace.sh regenerate 2026-04-12      → 일지 재생성"
         echo "  devtrace.sh weekly                     → 주간 리포트"
         echo "  devtrace.sh portfolio 프로젝트이름     → 포트폴리오 생성"
+        echo "  devtrace.sh interview 프로젝트이름     → 면접 질문 생성"
         echo "  devtrace.sh start                      → 파일 감시 데몬 시작"
         echo "  devtrace.sh stop                       → 데몬 종료"
         echo "  devtrace.sh status                     → 상태 확인"
+        echo "  devtrace.sh push                       → GitHub push"
         ;;
 esac
-
