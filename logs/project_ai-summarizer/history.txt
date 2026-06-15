@@ -1,214 +1,43 @@
-let isRunning = false;
-function setApi(api) {
-  currentApi = api;
-  document.getElementById('btn-groq').classList.toggle('active', api === 'groq');
-  document.getElementById('btn-openai').classList.toggle('active', api === 'openai');
-  showToast(api === 'groq' ? 'Groq (llama-3.3-70b)' : 'OpenAI (gpt-4o-mini)', 'success');
-const CMD_META = {
-  daily:     { title: 'daily 
-',       cmd: '$ bash devtrace.sh daily',          needsProject: false },
-  weekly:    { title: 'weekly 
-',          cmd: '$ bash devtrace.sh weekly',         needsProject: false },
-  project:   { title: 'project 
-',       cmd: '$ bash devtrace.sh project <
->', needsProject: true  },
-  portfolio: { title: 'portfolio 
- GitHub README',    cmd: '$ bash devtrace.sh portfolio <
->',needsProject: true  },
-  interview: { title: 'interview 
-',    cmd: '$ bash devtrace.sh interview <
-  push:      { title: 'push 
- GitHub push',           cmd: '$ bash devtrace.sh push',           needsProject: false },
-  status:    { title: 'status 
-',            cmd: '$ bash devtrace.sh status',         needsProject: false },
-function selectCmd(el, cmd) {
-  document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  currentCmd = cmd;
-  const m = CMD_META[cmd];
-  document.getElementById('main-title').textContent = m.title;
-  document.getElementById('main-cmd').textContent = m.cmd;
-  const inp = document.getElementById('project-input');
-  inp.style.display = m.needsProject ? 'block' : 'none';
-function clearTerminal() {
-  document.getElementById('terminal').innerHTML =
-    '<div class="empty-state"><div class="empty-icon">
-</div><p>
-</p></div>';
-  document.getElementById('terminal-title').textContent = '
-function appendLine(text, cls) {
-  const t = document.getElementById('terminal');
-  // clear empty state on first output
-  if (t.querySelector('.empty-state')) t.innerHTML = '';
-  const div = document.createElement('div');
-  div.className = cls || 'line-plain';
-  div.textContent = text;
-  t.appendChild(div);
-  t.scrollTop = t.scrollHeight;
-function classifyLine(line) {
-  if (!line) return 'line-plain';
-  if (line.startsWith('
-') || line.startsWith('
-')) return 'line-ok';
-')) return 'line-err';
-') ||
-      line.startsWith('
-      line.startsWith('[') || line.startsWith('
-')) return 'line-info';
-  if (line.startsWith('$') || line.startsWith('#')) return 'line-cmd';
-  return 'line-plain';
-async function runCommand() {
-  if (isRunning) return;
-  const projectName = document.getElementById('project-input').value.trim();
-  if (CMD_META[currentCmd].needsProject && !projectName) {
-    showToast('
-', 'error');
-    document.getElementById('project-input').focus();
-    return;
-  isRunning = true;
-  const btn = document.getElementById('run-btn');
-  btn.classList.add('running');
-  btn.disabled = true;
-  const term = document.getElementById('terminal');
-  term.innerHTML = '';
-  const now = new Date().toLocaleTimeString('ko-KR');
-  document.getElementById('terminal-title').textContent =
-    `${currentCmd} 
- ${now}`;
-  const cmdStr = CMD_META[currentCmd].cmd
-    .replace('<
->', projectName)
-    .replace('$ ', '');
-  appendLine('$ ' + cmdStr + (currentApi !== 'groq' ? ' --api ' + currentApi : ''), 'line-cmd');
-  appendLine('', 'line-plain');
-  try {
-    const params = new URLSearchParams({
-      cmd: currentCmd,
-      project: projectName,
-      api: currentApi,
-    });
-    const res = await fetch('/run?' + params);
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      chunk.split('\\n').forEach(line => {
-        appendLine(line, classifyLine(line));
-      });
-    }
-  } catch (e) {
-    appendLine('
-: ' + e.message, 'line-err');
-  } finally {
-    isRunning = false;
-    btn.classList.remove('running');
-    btn.disabled = false;
-    appendLine('', 'line-plain');
-'.repeat(48), 'line-plain');
-    // refresh journal list
-    refreshJournals();
-async function refreshJournals() {
-    const res = await fetch('/journals');
-    const data = await res.json();
-    const list = document.getElementById('journal-list');
-    list.innerHTML = '';
-    data.forEach(j => {
-      const div = document.createElement('div');
-      div.className = 'journal-item';
-      div.onclick = () => loadJournal(j.path, div);
-      div.innerHTML = `
-        <div class="journal-dot"></div>
-        <div class="journal-date">${j.name}</div>
-        <div class="journal-size">${(j.size/1024).toFixed(1)}KB</div>
-      `;
-      list.appendChild(div);
-  } catch(e) {}
-async function loadJournal(path, el) {
-  document.querySelectorAll('.journal-item').forEach(i => i.classList.remove('active'));
-    const res = await fetch('/journal?path=' + encodeURIComponent(path));
-    const text = await res.text();
-    const preview = document.getElementById('journal-preview');
-    preview.className = 'journal-preview';
-    preview.textContent = text.slice(0, 2000) + (text.length > 2000 ? '\\n\\n...(
-)' : '');
-  } catch(e) {
-    document.getElementById('journal-preview').textContent = '
-function showToast(msg, type) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + (type || '');
-  setTimeout(() => { t.className = 'toast'; }, 2200);
-// keyboard shortcut: Enter to run
-document.getElementById('project-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') runCommand();
-</script>
-</body>
-</html>"""
-@app.route("/")
-def index():
-    return render_template_string(
-        HTML,
-        journals=get_journals(),
-        projects=get_projects(),
-    )
-@app.route("/run")
-def run():
-    cmd = request.args.get("cmd", "daily")
-    project = request.args.get("project", "")
-    api = request.args.get("api", "groq")
-    allowed = {"daily", "weekly", "project", "portfolio", "interview", "push", "status"}
-    if cmd not in allowed:
-        return Response("
-", status=400)
-    args = ["bash", DEVTRACE_SH, cmd]
-    if cmd in ("project", "portfolio", "interview") and project:
-        args.append(project)
-    if api in ("groq", "openai") and cmd in ("daily", "project", "portfolio", "interview"):
-        args += ["--api", api]
-    def generate():
-        try:
-            proc = subprocess.Popen(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                cwd=str(DEVTRACE_DIR),
-            )
-            for line in iter(proc.stdout.readline, ""):
-                yield line
-            proc.wait()
-            if proc.returncode == 0:
-                yield "\n
-            else:
-                yield f"\n
-: {proc.returncode}\n"
-        except Exception as e:
-            yield f"
-: {e}\n"
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/plain",
-        headers={"X-Accel-Buffering": "no"},
-@app.route("/journals")
-def journals():
-    return jsonify(get_journals())
-@app.route("/journal")
-def journal():
-    path = request.args.get("path", "")
-    p = Path(path)
-    if not p.exists() or not str(p).startswith(str(JOURNAL_DIR)):
-        return "
-", 404
-    return p.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
-if __name__ == "__main__":
-    print("
-     DevTrace Web Dashboard       
-   http://localhost:5000          
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
-#1781439270
+    letter-spacing: 0.15em;
+    padding: 0 20px 8px;
+  .cmd-btn {
+    gap: 12px;
+    width: 100%;
+    padding: 11px 20px;
+    text-align: left;
+  .cmd-btn:hover { background: var(--card); }
+  .cmd-btn.active {
+    border-left-color: var(--accent);
+  .cmd-icon {
+    font-size: 15px;
+    width: 20px;
+    text-align: center;
+  .cmd-info { flex: 1; min-width: 0; }
+  .cmd-name { font-weight: 600; font-size: 13px; }
+  .cmd-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .sidebar-divider {
+    margin: 12px 20px;
+ MAIN 
+  main {
+  .main-header {
+    padding: 20px 28px 16px;
+    align-items: flex-start;
+  .main-title {
+    margin-bottom: 4px;
+  .main-subtitle {
+  .run-area {
+  .project-input {
+    padding: 8px 12px;
+    width: 180px;
+    outline: none;
+    transition: border-color 0.15s;
+  .project-input:focus { border-color: var(--accent); }
+  .project-input::placeholder { color: var(--muted); }
+  .run-btn {
+    gap: 8px;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  .run-btn:hover { opacity: 0.88; }
 #1781439326
 clear
 #1781439328
@@ -230,11 +59,15 @@ pip3 install flask
 #1781439565
 bash ~/devtrace/devtrace.sh web
 #1781443063
+gedit devtrace.sh
 #1781443251
 #1781443604
 #1781443783
 #1781443852
+cd ~/devtrace
+git add -A
 git commit -m "v2.11: --api 
+git push origin master
 #1781443908
 #1781444002
 grep -A 20 "devtrace_export" ~/.bashrc
@@ -245,6 +78,7 @@ source ~/.bashrc
 #1781444210
 devtrace_export
 #1781444254
+bash ~/devtrace/devtrace.sh push
 #1781498118
 bash ~/devtrace/devtrace.sh
 #1781498146
@@ -298,3 +132,169 @@ cp ~/devtrace/app.py.bak ~/devtrace/app.py
 #1781501007
 cp ~/devtrace/app.py ~/devtrace/app.py.bak2
 #1781501034
+#1781501071
+#1781532098
+gedit report.py
+#1781532419
+#1781532441
+cat >> ~/devtrace/report.py << 'EOF'
+def generate_coverletter(project_name: str, questions: str, provider: str = "groq") -> str:
+    """
+    project_journals = []
+    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
+        project_journals.append(md_file.read_text(encoding="utf-8"))
+    keywords = [k for k in re.split(r'[-_]', project_name.lower()) if len(k) >= 3]
+    if not keywords:
+        keywords = [project_name.lower()]
+    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        if any(k in content.lower() for k in keywords):
+            project_journals.append(f"[{md_file.stem}]\n{content}")
+    if not project_journals:
+        return f"'{project_name}' 
+    all_content = "\n\n---\n\n".join(project_journals)
+    if len(all_content) > 8000:
+        all_content = all_content[:8000] + "\n...(
+    prompt = f"""
+ "{project_name}" 
+{all_content}
+{questions}
+ (Python/Git/API 
+4. 1
+6. placeholder 
+    return call_api(
+        prompt, provider=provider, max_tokens=3500, temperature=0.4,
+        fallback_fn=lambda: f"# {project_name} 
+\n\n
+ AI 
+#1781532449
+python3 - << 'EOF'
+path = '/home/user/devtrace/report.py'
+addition = '''
+    elif mode == "coverletter":
+        project_name = args[1] if len(args) > 1 else "My Project"
+        questions = args[2] if len(args) > 2 else ""
+        print(f"
+: {project_name} [API: {api_provider}]")
+        result = generate_coverletter(project_name, questions, provider=api_provider)
+        result_path = PORTFOLIO_DIR / f"{project_name}_coverletter.md"
+        result_path.write_text(result, encoding="utf-8")
+: {result_path}")
+        print("\\n
+        print(result[:600])
+old = '''    else:
+        print("
+        print("  report.py weekly              
+")'''
+new = addition + '''
+    else:
+print("
+#1781532504
+# 1. generate_coverletter 
+ (draw_weekly_graph 
+#1781532520
+# 2. 
+python3 -m py_compile ~/devtrace/report.py && echo "OK"
+# 3. app.py 
+cp ~/devtrace/app.py ~/devtrace/app.py.bak3
+#1781532562
+#1781532566
+#1781532584
+#1781532687
+#1781532731
+#1781533014
+#1781533032
+#1781533497
+#1781533571
+#1781533710
+#1781533730
+#1781534030
+#1781534104
+#1781534230
+#1781534253
+#1781534582
+grep -n "generate_coverletter" ~/devtrace/report.py
+#1781534600
+sed -n '465,480p' ~/devtrace/report.py
+#1781534618
+sed -n '488,575p' ~/devtrace/report.py
+#1781534669
+ generate_coverletter 
+marker = '\ndef generate_coverletter(project_name: str, questions: str, provider: str = "groq") -> str:\n    """
+"""\n    project_journals = []\n\n    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):\n        project_journals.append(md_file.read_text(encoding="utf-8"))\n\n    keywords = [k for k in re.split(r\'[-_]\', project_name.lower()) if len(k) >= 3]'
+first = content.find(marker)
+second = content.find(marker, first + 1)
+if second != -1:
+    content = content[:second]
+    with open(path, 'w') as f:
+        f.write(content)
+else:
+#1781534674
+#1781534685
+#1781534726
+#1781534729
+grep -n "def generate_coverletter" ~/devtrace/report.py
+#1781534743
+#1781534849
+ls ~/devtrace/portfolio/ai-summarizer_coverletter.md
+#1781534854
+nano ~/devtrace/portfolio/ai-summarizer_coverletter.md
+#1781534750
+#1781535118
+#1781535119
+cp ~/devtrace/app.py ~/devtrace/app.py.bak4
+#1781535137
+#1781535149
+#1781535566
+git commit -m "app.py: 
+#1781535587
+devtrace.sh
+#1781535604
+#1781537575
+git -C ~/devtrace log --oneline -5
+ls ~/devtrace/app.py
+#1781537598
+git -C ~/devtrace status
+#1781537648
+cat >> ~/devtrace/work_log.txt << 'EOF'
+2026-06-16
+- app.py: 
+/coverletter/
+- VM 
+, git 
+#1781537749
+#1781538028
+cat ~/devtrace/portfolio/ai-summarizer_interview.md | head -30
+#1781538073
+cat ~/devtrace/portfolio/ai-summarizer_coverletter.md | head -30
+#1781538117
+#1781538128
+#1781538134
+#1781538345
+#1781538453
+#1781538471
+gedit
+#1781538498
+gedit ~/devtrace/portfolio/ai-summarizer_coverletter.md
+#1781538658
+#1781538703
+#1781538945
+ + push
+#1781538946
+git commit -m "v2.11: coverletter 
+#1781538948
+# 3. export
+#1781539516
+cp ~/devtrace/app.py ~/devtrace/app.py.bak5
+#1781539536
+#1781539554
+#1781539745
+new Date().toISOString()        // UTC 
+new Date().toLocaleDateString('sv-SE')  // 
+#1781539751
+#1781539816
+#1781540038
+#1781540106
+#1781540578
+#1781549281
+#1781549434

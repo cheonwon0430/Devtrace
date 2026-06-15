@@ -34,9 +34,6 @@ def get_journals(limit=20):
         str(JOURNAL_DIR / "project_*.md"),
         str(PORTFOLIO_DIR / "*_README.md"),
         str(PORTFOLIO_DIR / "*_interview.md"),
-        str(PORTFOLIO_DIR / "*_coverletter*.md"),
-        str(PORTFOLIO_DIR / "*_README*.md"),
-        str(PORTFOLIO_DIR / "*_interview*.md"),
     ]
     files = []
     for pattern in patterns:
@@ -865,7 +862,7 @@ function renderInputs(inputs) {
         inp.setAttribute('list', 'dl-project');
       }
       if (cfg.type === 'date') {
-        inp.value = new Date().toLocaleDateString('sv-SE');
+        inp.value = new Date().toISOString().slice(0, 10);
       }
       wrap.appendChild(inp);
     }
@@ -1244,7 +1241,7 @@ async function runCommand() {
 
 // ── 결과 파일 자동 로드 ───────────────────────────
 async function autoLoadResult() {
-  const today = new Date().toLocaleDateString('sv-SE');
+  const today = new Date().toISOString().slice(0, 10);
   const proj = getInputVal('project');
   let path = null, name = null;
 
@@ -1350,7 +1347,7 @@ async function runCoverletter() {
     const data = await res.json();
     if (data.ok) {
       appendLine('✅ 완료: ' + data.name, 'line-ok');
-      await checkAndShowResult(data.path, data.name);
+      await loadResultFile(data.path, data.name);
       refreshJournals();
       showToast('📝 자기소개서 생성 완료', 'success');
     } else {
