@@ -219,6 +219,27 @@ case "${1:-help}" in
         echo ""
         echo "📖 결과 확인: ~/devtrace/portfolio/${PROJECT}_interview.md"
         ;;
+        
+    "coverletter")
+        if [ -z "$2" ]; then
+            echo "❌ 사용법: devtrace.sh coverletter 프로젝트이름 [--api groq|openai]"
+            exit 1
+        fi
+        API_OPT="groq"
+        PROJECT="$2"
+        if [ "$3" = "--api" ] && [ -n "$4" ]; then
+            API_OPT="$4"
+        fi
+        echo "📝 자기소개서 생성: $PROJECT (API: $API_OPT)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "자기소개서 항목을 입력하세요."
+        echo "(입력 완료 후 빈 줄에서 Ctrl+D)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        QUESTIONS=$(cat)
+        python3 ~/devtrace/report.py coverletter "$PROJECT" "$QUESTIONS" "$API_OPT"
+        echo ""
+        echo "📖 결과 확인: ~/devtrace/portfolio/${PROJECT}_coverletter.md"
+        ;;
 
     "start")
         echo "👁  파일 감시 데몬 시작"
@@ -266,5 +287,6 @@ case "${1:-help}" in
         echo "  devtrace.sh status                                             → 상태 확인"
         echo "  devtrace.sh push                                               → GitHub push"
         echo "  devtrace.sh web                                                → 웹 대시보드 실행"
+        echo "  devtrace.sh coverletter 프로젝트이름 [--api groq|openai]         → 자기소개서 생성"
         ;;
 esac

@@ -13,3 +13,8 @@
 - collect.sh project 모드: strings로 바이너리 bash_history 대응, gnome/apt 필터
 - ai-summarizer project/portfolio/interview 정상 동작 확인
 - #34 다국어 검증 통과
+
+2026-06-16
+- app.py: 편집/참고자료/템플릿/재생성/coverletter/덮어쓰기 모달 완성
+- VM 먹통 → 재시동, git 커밋 덕분에 손실 없음
+- 다음: 시연 시나리오 작성 + 영상 녹화
