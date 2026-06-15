@@ -466,6 +466,18 @@ def main():
         print("\n미리보기:")
         print(result[:600])
 
+
+    elif mode == "coverletter":
+        project_name = args[1] if len(args) > 1 else "My Project"
+        questions = args[2] if len(args) > 2 else ""
+        print(f"📝 자기소개서 생성 중: {project_name} [API: {api_provider}]")
+        result = generate_coverletter(project_name, questions, provider=api_provider)
+        result_path = PORTFOLIO_DIR / f"{project_name}_coverletter.md"
+        result_path.write_text(result, encoding="utf-8")
+        print(f"✅ 자기소개서 저장: {result_path}")
+        print("\n미리보기:")
+        print(result[:600])
+
     else:
         print("사용법:")
         print("  report.py weekly              → 주간 리포트")
@@ -475,3 +487,80 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def generate_coverletter(project_name: str, questions: str, provider: str = "groq") -> str:
+    """자기소개서 항목 기반 답변 생성"""
+    project_journals = []
+
+    for md_file in sorted(JOURNAL_DIR.glob(f"project_{project_name}*.md")):
+        project_journals.append(md_file.read_text(encoding="utf-8"))
+
+    keywords = [k for k in re.split(r'[-_]', project_name.lower()) if len(k) >= 3]
+    if not keywords:
+        keywords = [project_name.lower()]
+
+    for md_file in sorted(JOURNAL_DIR.glob("20*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        if any(k in content.lower() for k in keywords):
+            project_journals.append(f"[{md_file.stem}]\n{content}")
+
+    if not project_journals:
+        return f"'{project_name}' 관련 일지를 찾을 수 없습니다."
+
+    all_content = "\n\n---\n\n".join(project_journals)
+    if len(all_content) > 8000:
+        all_content = all_content[:8000] + "\n...(이하 생략)"
+
+    prompt = f"""당신은 신입 개발자의 자기소개서를 작성해주는 전문가입니다.
+
+아래는 "{project_name}" 프로젝트의 개발 일지 모음입니다.
+이 일지를 바탕으로 아래 자기소개서 항목에 답변을 작성해주세요.
+
+[개발 일지]
+{all_content}
+
+[자기소개서 항목]
+{questions}
+
+[자기소개서 작성 전 필수 분석]
+각 항목을 작성하기 전에 아래 평가 의도를 반드시 먼저 파악하고 그에 맞게 작성할 것.
+
+1번 항목 평가 의도: 표면적 에러 수정이 아닌 구조적 취약점 발견 능력.
+핵심: "에러가 발생했다 → 고쳤다"가 아니라 "왜 이 구조가 그 에러를 만들어냈는가"를 발견한 서사로 작성할 것.
+예시 흐름: API 키를 코드에 직접 넣었다 → 보안 취약점 발생 → 왜 이 설계가 문제인지 인식 → .env 구조로 전환
+절대 금지: "파일 경로를 확인했습니다", "키가 존재하는지 확인했습니다" 같은 단순 수정 나열.
+
+2번 항목 평가 의도: 완성도에 대한 집착과 몰입 경험.
+핵심: "충분하다고 느꼈던 시점"을 구체적으로 언급하고, "그럼에도 더 한 이유"와 "그 과정의 구체적 어려움"을 써야 함.
+절대 금지: 통계 수치 나열, 에러 해결 나열, "몰입했습니다" 선언만 하고 근거 없음.
+
+3번 항목 평가 의도: 각 기술 분야에 대한 실제 경험 기반 관심도.
+핵심: 순위 형식(Platform > Client = Server > Infra) 먼저 쓰고, 각 분야마다 ai-summarizer에서 실제로 한 작업을 근거로 관심 갖게 된 계기를 구체적으로 작성할 것.
+절대 금지: "~할 예정입니다", "~의 중요성을 깨달았습니다"만 쓰고 구체적 경험 없음, Infra를 Git으로 퉁치기.
+
+공통 금지사항:
+- 통계 수치(파일 수, 커밋 수, 코드 줄 수) 절대 포함 금지
+- "~했습니다. ~했습니다" 단순 나열 금지
+- 상황 → 문제 인식 → 시도 → 해결 → 깨달음 구조로 작성할 것
+- 1인칭 서사, 감정과 성장이 느껴지도록 작성할 것
+
+[필수 규칙]
+1. 모든 문장은 순수 한국어로만 작성할 것 (Python/Git/API 등 기술 고유명사는 예외).
+   금지 문자: 한자(漢字), 일본어 히라가나/가타카나, 베트남어 발음기호 알파벳.
+   작성 후 전체를 다시 훑어보고 금지 문자 0개 상태로만 출력할 것.
+2. 반드시 일지에 실제로 등장한 경험/트러블슈팅/기술을 근거로 작성할 것.
+   일지에 없는 내용은 억지로 만들지 말 것.
+3. 각 항목별 글자 수 제한이 있으면 그 안에서 작성할 것.
+4. 1인칭(저는, 제가)으로 작성할 것.
+5. 각 항목은 원래 질문 번호와 내용을 헤더로 유지할 것.
+6. placeholder 쓰지 말 것.
+
+위 항목들에 대해 개발 일지 내용을 근거로 자기소개서 답변을 작성해주세요.
+"""
+
+    return call_api(
+        prompt, provider=provider, max_tokens=3500, temperature=0.4,
+        fallback_fn=lambda: f"# {project_name} 자기소개서\n\n⚠️ AI 호출 실패 — 잠시 후 다시 실행하세요."
+    )
+

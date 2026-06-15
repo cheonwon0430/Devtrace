@@ -1,78 +1,3 @@
-          <div class="cmd-name">daily</div>
-          <div class="cmd-desc">
-        </div>
-      </button>
-      <button class="cmd-btn" onclick="selectCmd(this,'weekly')"
-          <div class="cmd-name">weekly</div>
-    <hr class="sidebar-divider">
-      <button class="cmd-btn" onclick="selectCmd(this,'project')"
-              data-needs-project="true">
-          <div class="cmd-name">project</div>
-      <button class="cmd-btn" onclick="selectCmd(this,'portfolio')"
-          <div class="cmd-name">portfolio</div>
-          <div class="cmd-desc">GitHub README 
-      <button class="cmd-btn" onclick="selectCmd(this,'interview')"
-          <div class="cmd-name">interview</div>
-      <button class="cmd-btn" onclick="selectCmd(this,'push')"
-          <div class="cmd-name">push</div>
-          <div class="cmd-desc">GitHub push</div>
-      <button class="cmd-btn" onclick="selectCmd(this,'status')"
-          <div class="cmd-name">status</div>
-  </nav>
-  <!-- MAIN -->
-  <main>
-    <div class="main-header">
-      <div>
-        <div class="main-title" id="main-title">daily 
-        <div class="main-subtitle" id="main-cmd">$ bash devtrace.sh daily</div>
-      </div>
-      <div class="run-area">
-        <input type="text" class="project-input" id="project-input"
-               placeholder="
-" style="display:none"
-               list="project-list">
-        <datalist id="project-list">
-          {% for p in projects %}
-          <option value="{{ p }}">
-          {% endfor %}
-        </datalist>
-        <button class="run-btn" id="run-btn" onclick="runCommand()">
-          <div class="spinner"></div>
-          <span class="btn-text">
-        </button>
-    <div class="terminal-wrap">
-      <div class="terminal-bar">
-        <div class="dot dot-r"></div>
-        <div class="dot dot-y"></div>
-        <div class="dot dot-g"></div>
-        <span class="terminal-title" id="terminal-title">
-        <button class="clear-btn" onclick="clearTerminal()">clear</button>
-      <div id="terminal">
-        <div class="empty-state">
-          <div class="empty-icon">
-          <p>
-</p>
-  </main>
-  <!-- RIGHT PANEL -->
-  <div class="right-panel">
-    <div class="panel-header">
-    <div class="journal-list" id="journal-list">
-      {% if journals %}
-        {% for j in journals %}
-        <div class="journal-item" onclick="loadJournal('{{ j.path }}', this)">
-          <div class="journal-dot"></div>
-          <div class="journal-date">{{ j.name }}</div>
-          <div class="journal-size">{{ (j.size / 1024) | round(1) }}KB</div>
-        {% endfor %}
-      {% else %}
-        <div class="journal-preview-empty">
-      {% endif %}
-    <div id="journal-preview" class="journal-preview-empty">
-      
-<div class="toast" id="toast"></div>
-<script>
-let currentCmd = 'daily';
-let currentApi = 'groq';
 let isRunning = false;
 function setApi(api) {
   currentApi = api;
@@ -172,6 +97,7 @@ async function runCommand() {
       chunk.split('\\n').forEach(line => {
         appendLine(line, classifyLine(line));
       });
+    }
   } catch (e) {
     appendLine('
 : ' + e.message, 'line-err');
@@ -226,6 +152,7 @@ def index():
         HTML,
         journals=get_journals(),
         projects=get_projects(),
+    )
 @app.route("/run")
 def run():
     cmd = request.args.get("cmd", "daily")
@@ -255,6 +182,7 @@ def run():
             proc.wait()
             if proc.returncode == 0:
                 yield "\n
+            else:
                 yield f"\n
 : {proc.returncode}\n"
         except Exception as e:
@@ -272,16 +200,20 @@ def journal():
     path = request.args.get("path", "")
     p = Path(path)
     if not p.exists() or not str(p).startswith(str(JOURNAL_DIR)):
+        return "
 ", 404
     return p.read_text(encoding="utf-8"), 200, {"Content-Type": "text/plain; charset=utf-8"}
+if __name__ == "__main__":
     print("
      DevTrace Web Dashboard       
    http://localhost:5000          
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
 #1781439270
 #1781439326
+clear
 #1781439328
 #1781439355
+gedit ~/devtrace/devtrace.sh
 #1781439494
 #1781439495
 #1781439515
@@ -298,3 +230,71 @@ pip3 install flask
 #1781439565
 bash ~/devtrace/devtrace.sh web
 #1781443063
+#1781443251
+#1781443604
+#1781443783
+#1781443852
+git commit -m "v2.11: --api 
+#1781443908
+#1781444002
+grep -A 20 "devtrace_export" ~/.bashrc
+#1781444062
+nano ~/.bashrc
+#1781444185
+source ~/.bashrc
+#1781444210
+devtrace_export
+#1781444254
+#1781498118
+bash ~/devtrace/devtrace.sh
+#1781498146
+#1781499559
+cp ~/devtrace/app.py ~/devtrace/app.py.bak
+#1781499759
+cd ~/
+#1781499761
+#1781499789
+unzip 063aacd1-73b9-44e2-818e-2163994eb436_ExportBlock-88d51e9e-b612-4136-af3d-69cb46bb2527.zip
+#1781499800
+#1781500195
+cd ..
+#1781500196
+#1781500202
+cd devtrace
+#1781500204
+#1781500208
+gedit app.py
+#1781500243
+#1781500413
+grep -n "tmpl-content-input" ~/devtrace/app.py
+#1781500438
+sed -i '696s/.*/    <textarea class="modal-textarea" id="tmpl-content-input" placeholder="# 
+ ## 
+ ..."><\/textarea>/' ~/devtrace/app.py
+#1781500443
+#1781500486
+nano +696 ~/devtrace/app.py
+#1781500542
+echo $HOME
+#1781500558
+python3 -c "
+path = '/home/user/devtrace/app.py'
+with open(path, 'r') as f:
+    content = f.read()
+old = 'placeholder=\"# 
+&#10;&#10;## 
+&#10;...\"'
+new = 'placeholder=\"
+content = content.replace(old, new)
+with open(path, 'w') as f:
+    f.write(content)
+print('
+#1781500562
+python3 ~/devtrace/app.py
+#1781500593
+cp ~/devtrace/app.py.bak ~/devtrace/app.py
+#1781500759
+#1781500792
+#1781501007
+cp ~/devtrace/app.py ~/devtrace/app.py.bak2
+#1781501034

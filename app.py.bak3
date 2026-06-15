@@ -560,10 +560,6 @@ HTML = r"""<!DOCTYPE html>
         <span class="cmd-icon">🎤</span>
         <div class="cmd-info"><div class="cmd-name">interview</div><div class="cmd-desc">면접 질문 생성</div></div>
       </button>
-      <button class="cmd-btn" onclick="selectCmd(this,'coverletter')">
-        <span class="cmd-icon">📝</span>
-        <div class="cmd-info"><div class="cmd-name">coverletter</div><div class="cmd-desc">자기소개서 작성</div></div>
-      </button>
     </div>
 
     <hr class="sidebar-divider">
@@ -705,38 +701,6 @@ HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- 덮어쓰기 확인 모달 -->
-<div class="modal-overlay" id="overwrite-modal">
-  <div class="modal">
-    <div class="modal-title">⚠️ 파일이 이미 존재합니다</div>
-    <p style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:16px;" id="overwrite-filename"></p>
-
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-      <button class="modal-btn primary" onclick="overwriteConfirm()" style="text-align:left;padding:12px 16px;">
-        🔄 덮어쓰기
-        <span style="display:block;font-size:10px;opacity:0.7;margin-top:2px;">기존 파일을 새 내용으로 교체</span>
-      </button>
-      <button class="modal-btn secondary" onclick="showSaveAsInput()" style="text-align:left;padding:12px 16px;border:1px solid var(--border);">
-        💾 다른 이름으로 저장
-        <span style="display:block;font-size:10px;opacity:0.7;margin-top:2px;">기존 파일 유지, 새 이름으로 저장</span>
-      </button>
-      <button class="modal-btn secondary" onclick="overwriteCancel()" style="text-align:left;padding:12px 16px;border:1px solid var(--border);">
-        ✕ 취소
-        <span style="display:block;font-size:10px;opacity:0.7;margin-top:2px;">생성된 파일 유지, 결과만 확인</span>
-      </button>
-    </div>
-
-    <div id="save-as-area" style="display:none;">
-      <span class="modal-label">새 파일 이름</span>
-      <input class="modal-input" id="save-as-input" type="text" placeholder="예: ai-summarizer_coverletter_v2" />
-      <div class="modal-footer">
-        <button class="modal-btn secondary" onclick="hideSaveAsInput()">뒤로</button>
-        <button class="modal-btn primary" onclick="saveAsConfirm()">저장</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -746,8 +710,6 @@ let isRunning = false;
 let currentFilePath = null;
 let currentFileName = null;
 let selectedFiles = [];
-let pendingOverwritePath = null;
-let pendingOverwriteName = null;
 
 const CMD_META = {
   daily:      { title: 'daily — 오늘 일지 생성',        cmd: '$ bash devtrace.sh daily',             inputs: [] },
@@ -760,7 +722,6 @@ const CMD_META = {
   interview:  { title: 'interview — 면접 질문 생성',     cmd: '$ bash devtrace.sh interview <이름>',  inputs: ['project'] },
   push:       { title: 'push — GitHub push',             cmd: '$ bash devtrace.sh push',              inputs: [] },
   status:     { title: 'status — 데몬 상태 확인',        cmd: '$ bash devtrace.sh status',            inputs: [] },
-  coverletter: { title: 'coverletter — 자기소개서 작성',   cmd: '웹에서 직접 실행',                     inputs: ['project', 'questions'] },
 };
 
 const INPUT_CONFIG = {
@@ -768,8 +729,7 @@ const INPUT_CONFIG = {
   from:     { label: 'from',     placeholder: '2026-06-01',    type: 'date',    cls: 'short' },
   to:       { label: 'to',       placeholder: '2026-06-14',    type: 'date',    cls: 'short' },
   date:     { label: '날짜',     placeholder: '2026-06-14',    type: 'date',    cls: 'short' },
-  template:  { label: '템플릿',   placeholder: '',              type: 'select',  cls: '' },
-  questions: { label: '자소서 항목', placeholder: '항목을 입력하세요', type: 'textarea', cls: '' },
+  template: { label: '템플릿',   placeholder: '',              type: 'select',  cls: '' },
 };
 
 const PROJECTS = {{ projects | tojson }};
@@ -799,31 +759,7 @@ function renderInputs(inputs) {
     label.textContent = cfg.label + ':';
     wrap.appendChild(label);
 
-    if (cfg.type === 'textarea') {
-      // 자소서 항목 textarea
-      const ta = document.createElement('textarea');
-      ta.id = 'input-' + key;
-      ta.placeholder = '자기소개서 항목을 붙여넣으세요. (예: 1. 문제 해결 경험을 적어주세요. (1000자 이내))';
-      ta.style.cssText = 'width:100%;height:120px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:11px;line-height:1.6;resize:vertical;outline:none;margin-top:8px;';
-      ta.addEventListener('focus', () => ta.style.borderColor = 'var(--accent)');
-      ta.addEventListener('blur', () => ta.style.borderColor = 'var(--border)');
-      // textarea는 control-right 대신 control-bar 아래 별도 영역에 배치
-      const bar = document.querySelector('.control-bar');
-      let qaArea = document.getElementById('questions-area');
-      if (!qaArea) {
-        qaArea = document.createElement('div');
-        qaArea.id = 'questions-area';
-        qaArea.style.cssText = 'padding:10px 24px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;';
-        bar.insertAdjacentElement('afterend', qaArea);
-      }
-      qaArea.innerHTML = '';
-      const lbl = document.createElement('div');
-      lbl.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.1em;';
-      lbl.textContent = '자기소개서 항목 (붙여넣기)';
-      qaArea.appendChild(lbl);
-      qaArea.appendChild(ta);
-      return; // control-right에는 추가 안 함
-    } else if (cfg.type === 'select') {
+    if (cfg.type === 'select') {
       // 템플릿 드롭다운
       const sel = document.createElement('select');
       sel.className = 'cmd-select';
@@ -884,9 +820,6 @@ function selectCmd(el, cmd) {
   const m = CMD_META[cmd];
   document.getElementById('main-title').textContent = m.title;
   document.getElementById('main-cmd').textContent = m.cmd;
-  // questions-area 정리 (다른 명령어 선택 시 제거)
-  const qa = document.getElementById('questions-area');
-  if (qa) qa.remove();
   renderInputs(m.inputs);
 }
 
@@ -1171,12 +1104,6 @@ async function runCommand() {
     }
   }
 
-  // coverletter는 별도 처리
-  if (currentCmd === 'coverletter') {
-    await runCoverletter();
-    return;
-  }
-
   isRunning = true;
   const btn = document.getElementById('run-btn');
   btn.classList.add('running'); btn.disabled = true;
@@ -1267,11 +1194,9 @@ async function autoLoadResult() {
     path = '{{ portfolio_dir }}/' + proj + '_README.md'; name = proj + '_README';
   } else if (currentCmd === 'interview') {
     path = '{{ portfolio_dir }}/' + proj + '_interview.md'; name = proj + '_interview';
-  } else if (currentCmd === 'coverletter') {
-    path = '{{ portfolio_dir }}/' + proj + '_coverletter.md'; name = proj + '_coverletter';
   }
 
-  if (path) await checkAndShowResult(path, name);
+  if (path) await loadResultFile(path, name);
 }
 
 async function loadResultFile(path, name) {
@@ -1314,122 +1239,6 @@ async function loadJournal(path, name, el) {
   } catch(e) {
     showToast('오류: ' + e.message, 'error');
   }
-}
-
-async function runCoverletter() {
-  const proj = getInputVal('project');
-  const questions = getInputVal('questions');
-  if (!proj) { showToast('프로젝트 이름을 입력하세요', 'error'); return; }
-  if (!questions) { showToast('자기소개서 항목을 입력하세요', 'error'); return; }
-
-  isRunning = true;
-  const btn = document.getElementById('run-btn');
-  btn.classList.add('running'); btn.disabled = true;
-  cancelEdit();
-
-  document.getElementById('terminal').innerHTML = '';
-  const now = new Date().toLocaleTimeString('ko-KR');
-  document.getElementById('terminal-title').textContent = 'coverletter — ' + now;
-  document.getElementById('result-view').innerHTML =
-    '<div class="result-empty"><div class="ei">⏳</div><p>자기소개서 생성 중...</p></div>';
-  document.getElementById('result-name').textContent = '생성 중...';
-  ['btn-edit','btn-ref','btn-regen'].forEach(id => document.getElementById(id).disabled = true);
-
-  appendLine('📝 자기소개서 생성 중: ' + proj, 'line-info');
-  appendLine('📡 AI API 호출 중... (30초~1분 소요)', 'line-info');
-
-  try {
-    const res = await fetch('/coverletter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: proj, questions, api: currentApi })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      appendLine('✅ 완료: ' + data.name, 'line-ok');
-      await loadResultFile(data.path, data.name);
-      refreshJournals();
-      showToast('📝 자기소개서 생성 완료', 'success');
-    } else {
-      appendLine('❌ 오류: ' + data.error, 'line-err');
-      showToast('❌ ' + data.error, 'error');
-    }
-  } catch(e) {
-    appendLine('❌ ' + e.message, 'line-err');
-  } finally {
-    isRunning = false;
-    btn.classList.remove('running'); btn.disabled = false;
-  }
-}
-
-// ── 덮어쓰기 모달 ─────────────────────────────────
-async function checkAndShowResult(path, name) {
-  try {
-    const res = await fetch('/exists?path=' + encodeURIComponent(path));
-    const data = await res.json();
-    if (data.exists) {
-      // 파일 존재 → 모달 띄우기
-      pendingOverwritePath = path;
-      pendingOverwriteName = name;
-      document.getElementById('overwrite-filename').textContent = name + '.md';
-      document.getElementById('save-as-input').value = name + '_v2';
-      document.getElementById('overwrite-modal').classList.add('show');
-    } else {
-      // 파일 없음 → 바로 로드
-      await loadResultFile(path, name);
-    }
-  } catch(e) {
-    await loadResultFile(path, name);
-  }
-}
-
-function overwriteConfirm() {
-  document.getElementById('overwrite-modal').classList.remove('show');
-  if (pendingOverwritePath) {
-    loadResultFile(pendingOverwritePath, pendingOverwriteName);
-  }
-  pendingOverwritePath = null;
-  pendingOverwriteName = null;
-}
-
-function overwriteCancel() {
-  document.getElementById('overwrite-modal').classList.remove('show');
-  pendingOverwritePath = null;
-  pendingOverwriteName = null;
-}
-
-function showSaveAsInput() {
-  document.getElementById('save-as-area').style.display = 'block';
-}
-function hideSaveAsInput() {
-  document.getElementById('save-as-area').style.display = 'none';
-}
-
-async function saveAsConfirm() {
-  const newName = document.getElementById('save-as-input').value.trim();
-  if (!newName) { showToast('이름을 입력하세요', 'error'); return; }
-  if (!pendingOverwritePath) return;
-
-  try {
-    const res = await fetch('/save_as', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ src: pendingOverwritePath, name: newName })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      document.getElementById('overwrite-modal').classList.remove('show');
-      await loadResultFile(data.path, data.name);
-      refreshJournals();
-      showToast('💾 ' + data.name + ' 저장 완료', 'success');
-    } else {
-      showToast('❌ ' + data.error, 'error');
-    }
-  } catch(e) {
-    showToast('❌ ' + e.message, 'error');
-  }
-  pendingOverwritePath = null;
-  pendingOverwriteName = null;
 }
 
 function showToast(msg, type) {
@@ -1600,69 +1409,6 @@ def save_template():
         path = TEMPLATES_DIR / f"{safe_name}.md"
         path.write_text(content, encoding="utf-8")
         return jsonify({"ok": True, "name": safe_name})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-
-@app.route("/coverletter", methods=["POST"])
-def coverletter():
-    """자기소개서 생성 — report.py 직접 호출"""
-    data = request.get_json()
-    project = data.get("project", "").strip()
-    questions = data.get("questions", "").strip()
-    api = data.get("api", "groq")
-
-    if not project:
-        return jsonify({"ok": False, "error": "프로젝트 이름을 입력하세요"})
-    if not questions:
-        return jsonify({"ok": False, "error": "자기소개서 항목을 입력하세요"})
-
-    try:
-        import sys
-        sys.path.insert(0, str(DEVTRACE_DIR))
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("report", str(DEVTRACE_DIR / "report.py"))
-        report_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(report_mod)
-
-        result = report_mod.generate_coverletter(project, questions, provider=api)
-        result_path = PORTFOLIO_DIR / f"{project}_coverletter.md"
-        result_path.write_text(result, encoding="utf-8")
-        return jsonify({"ok": True, "path": str(result_path), "name": f"{project}_coverletter"})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-
-@app.route("/exists")
-def exists():
-    """파일 존재 여부 확인"""
-    path = request.args.get("path", "")
-    p = Path(path)
-    allowed_dirs = [str(JOURNAL_DIR), str(PORTFOLIO_DIR)]
-    if not any(str(p).startswith(d) for d in allowed_dirs):
-        return jsonify({"exists": False})
-    return jsonify({"exists": p.exists()})
-
-
-@app.route("/save_as", methods=["POST"])
-def save_as():
-    """다른 이름으로 저장"""
-    data = request.get_json()
-    src = data.get("src", "")
-    new_name = data.get("name", "").strip()
-    if not src or not new_name:
-        return jsonify({"ok": False, "error": "경로 또는 이름 없음"})
-    src_p = Path(src)
-    allowed_dirs = [str(JOURNAL_DIR), str(PORTFOLIO_DIR)]
-    if not any(str(src_p).startswith(d) for d in allowed_dirs):
-        return jsonify({"ok": False, "error": "허용되지 않는 경로"})
-    # 같은 디렉토리에 새 이름으로 저장
-    safe_name = "".join(c for c in new_name if c.isalnum() or c in "-_ ")
-    dest_p = src_p.parent / f"{safe_name}.md"
-    try:
-        import shutil
-        shutil.copy2(str(src_p), str(dest_p))
-        return jsonify({"ok": True, "path": str(dest_p), "name": safe_name})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
